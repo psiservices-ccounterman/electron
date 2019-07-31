@@ -61,7 +61,7 @@ class BundledDataSource : public content::URLDataSource {
   std::string GetSource() override { return kChromeUIDevToolsHost; }
 
   void StartDataRequest(const std::string& path,
-                        const content::WebContents::Getter&& wc_getter,
+                        const content::WebContents::Getter& wc_getter,
                         const GotDataCallback& callback) override {
     // Serve request from local bundle.
     std::string bundled_path_prefix(kChromeUIDevToolsBundledPath);
