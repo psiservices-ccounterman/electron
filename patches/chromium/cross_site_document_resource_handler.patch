@@ -7,25 +7,11 @@ Add a content layer hook to disable CORB for a renderer process,
 this patch can be removed once we switch to network service,
 where the embedders have a chance to design their URLLoaders.
 
-diff --git a/content/browser/loader/cross_site_document_resource_handler.cc b/content/browser/loader/cross_site_document_resource_handler.cc
-index b74bbef56038e29ca35403affd284a7a8868c201..d6887e576ac197f80a7e5261bd251cd761d1d814 100644
---- a/content/browser/loader/cross_site_document_resource_handler.cc
-+++ b/content/browser/loader/cross_site_document_resource_handler.cc
-@@ -582,6 +582,9 @@ bool CrossSiteDocumentResourceHandler::ShouldBlockBasedOnHeaders(
-       request()->initiator()->scheme() == url::kFileScheme)
-     return false;
- 
-+  if (GetContentClient()->browser()->ShouldBypassCORB(info->GetChildID()))
-+    return false;
-+
-   return true;
- }
- 
 diff --git a/content/public/browser/content_browser_client.cc b/content/public/browser/content_browser_client.cc
-index 5142cfedf46dafa383f615fe8ca72c1d4c20b36e..691fbc819713beb881402cb8a84886bd0780b106 100644
+index e1996d41686999298f74dd2da87270ca06faf595..916ec21b1ba5f4ec09359e04cb31058a8043ba90 100644
 --- a/content/public/browser/content_browser_client.cc
 +++ b/content/public/browser/content_browser_client.cc
-@@ -71,6 +71,10 @@ std::unique_ptr<BrowserMainParts> ContentBrowserClient::CreateBrowserMainParts(
+@@ -63,6 +63,10 @@ std::unique_ptr<BrowserMainParts> ContentBrowserClient::CreateBrowserMainParts(
    return nullptr;
  }
  
@@ -37,10 +23,10 @@ index 5142cfedf46dafa383f615fe8ca72c1d4c20b36e..691fbc819713beb881402cb8a84886bd
      const base::Location& from_here,
      const scoped_refptr<base::TaskRunner>& task_runner,
 diff --git a/content/public/browser/content_browser_client.h b/content/public/browser/content_browser_client.h
-index 671b2ccfb8f8f21018931c454584d7f0bd2b1418..b5361817676abfdf74cc6cf9a628e18a5aeb3dd8 100644
+index 64f644157d73a9c20f06c8d63722e824f3e2b4d5..df63ec79a4ba042f643dc4b042d89ec5b84960e1 100644
 --- a/content/public/browser/content_browser_client.h
 +++ b/content/public/browser/content_browser_client.h
-@@ -249,6 +249,9 @@ class CONTENT_EXPORT ContentBrowserClient {
+@@ -245,6 +245,9 @@ class CONTENT_EXPORT ContentBrowserClient {
    virtual std::unique_ptr<BrowserMainParts> CreateBrowserMainParts(
        const MainFunctionParams& parameters);
  
