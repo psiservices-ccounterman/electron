@@ -367,8 +367,8 @@ index 0000000000000000000000000000000000000000..ff3c0217812a8370a20aa528f117e928
 +#include "components/viz/host/host_display_client.h"
 +#include "components/viz/service/display/software_output_device.h"
 +#include "components/viz/service/viz_service_export.h"
-+#include "services/viz/privileged/interfaces/compositing/display_private.mojom.h"
-+#include "services/viz/privileged/interfaces/compositing/layered_window_updater.mojom.h"
++#include "services/viz/privileged/mojom/compositing/display_private.mojom.h"
++#include "services/viz/privileged/mojom/compositing/layered_window_updater.mojom.h"
 +
 +namespace viz {
 +
