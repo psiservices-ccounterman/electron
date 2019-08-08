@@ -476,10 +476,10 @@ index 73ea1986b2140a3ffb87c5e23c7ab2174bac0a10..3ba3657ba12ec47cc3db3fec218496ff
    } else {
      return std::make_unique<SoftwareOutputDeviceWinDirect>(hwnd, backing);
    }
-diff --git a/services/viz/privileged/interfaces/compositing/display_private.mojom b/services/viz/privileged/interfaces/compositing/display_private.mojom
+diff --git a/services/viz/privileged/mojom/compositing/display_private.mojom b/services/viz/privileged/mojom/compositing/display_private.mojom
 index d5d0f0eaab04ccfedf6c01ae565c1ddc3f518cd0..b186708c6a3443806236a565496c5e55019ae9fb 100644
---- a/services/viz/privileged/interfaces/compositing/display_private.mojom
-+++ b/services/viz/privileged/interfaces/compositing/display_private.mojom
+--- a/services/viz/privileged/mojom/compositing/display_private.mojom
++++ b/services/viz/privileged/mojom/compositing/display_private.mojom
 @@ -79,12 +79,14 @@ interface DisplayPrivate {
  };
  
@@ -605,10 +605,10 @@ index a73b2e678ffe0a682d0aa5409724fb441768bec5..6c36626d204c77ef51278b9e8f6fc6ee
 +  gfx.mojom.Rect damage;
    float scale_factor;
  };
-diff --git a/ui/gfx/mojo/ca_layer_params_struct_traits.cc b/ui/gfx/mojo/ca_layer_params_struct_traits.cc
+diff --git a/ui/gfx/mojom/ca_layer_params_mojom_traits.cc b/ui/gfx/mojom/ca_layer_params_mojom_traits.cc
 index 5be5a3547f8eb826faaa4a18455b18ee22ec0bf9..beb94400a0d7a30c2aae0b3821f011853c8b6c58 100644
---- a/ui/gfx/mojo/ca_layer_params_struct_traits.cc
-+++ b/ui/gfx/mojo/ca_layer_params_struct_traits.cc
+--- a/ui/gfx/mojom/ca_layer_params_mojom_traits.cc
++++ b/ui/gfx/mojom/ca_layer_params_mojom_traits.cc
 @@ -52,6 +52,9 @@ bool StructTraits<gfx::mojom::CALayerParamsDataView, gfx::CALayerParams>::Read(
    if (!data.ReadPixelSize(&out->pixel_size))
      return false;
@@ -619,10 +619,10 @@ index 5be5a3547f8eb826faaa4a18455b18ee22ec0bf9..beb94400a0d7a30c2aae0b3821f01185
    out->scale_factor = data.scale_factor();
    return true;
  }
-diff --git a/ui/gfx/mojo/ca_layer_params_struct_traits.h b/ui/gfx/mojo/ca_layer_params_struct_traits.h
+diff --git a/ui/gfx/mojom/ca_layer_params_mojom_traits.h b/ui/gfx/mojom/ca_layer_params_mojom_traits.h
 index 94127a0d5b50b052318e9e5a360755fe771f87e9..348fa26c5c95a13d1ddd0ff2545aca3a35841a77 100644
---- a/ui/gfx/mojo/ca_layer_params_struct_traits.h
-+++ b/ui/gfx/mojo/ca_layer_params_struct_traits.h
+--- a/ui/gfx/mojom/ca_layer_params_mojom_traits.h
++++ b/ui/gfx/mojom/ca_layer_params_mojom_traits.h
 @@ -20,6 +20,10 @@ struct StructTraits<gfx::mojom::CALayerParamsDataView, gfx::CALayerParams> {
      return ca_layer_params.pixel_size;
    }
