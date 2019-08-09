@@ -64,10 +64,9 @@ class BundledDataSource : public content::URLDataSource {
   // content::URLDataSource implementation.
   std::string GetSource() const override { return kPdfViewerUIHost; }
 
-  void StartDataRequest(
-      const std::string& path,
-      const content::ResourceRequestInfo::WebContentsGetter& wc_getter,
-      const GotDataCallback& callback) override {
+  void StartDataRequest(const std::string& path,
+                        const content::WebContents::Getter& wc_getter,
+                        const GotDataCallback& callback) override {
     std::string filename = PathWithoutParams(path);
     auto entry = path_to_resource_id_.find(filename);
 
