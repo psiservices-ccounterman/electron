@@ -45,7 +45,9 @@
 #include "shell/browser/api/atom_api_cookies.h"
 #include "shell/browser/api/atom_api_download_item.h"
 #include "shell/browser/api/atom_api_net_log.h"
+#include "shell/browser/api/atom_api_protocol.h"
 #include "shell/browser/api/atom_api_protocol_ns.h"
+#include "shell/browser/api/atom_api_web_request.h"
 #include "shell/browser/api/atom_api_web_request_ns.h"
 #include "shell/browser/atom_browser_context.h"
 #include "shell/browser/atom_browser_main_parts.h"
@@ -120,7 +122,6 @@ uint32_t GetQuotaMask(const std::vector<std::string>& quota_types) {
   return quota_mask;
 }
 
-/*
 void SetUserAgentInIO(scoped_refptr<net::URLRequestContextGetter> getter,
                       const std::string& accept_lang,
                       const std::string& user_agent) {
@@ -129,7 +130,6 @@ void SetUserAgentInIO(scoped_refptr<net::URLRequestContextGetter> getter,
           net::HttpUtil::GenerateAcceptLanguageHeader(accept_lang),
           user_agent));
 }
-*/
 
 }  // namespace
 
@@ -178,6 +178,14 @@ const char kPersistPrefix[] = "persist:";
 
 // Referenced session objects.
 std::map<uint32_t, v8::Global<v8::Object>> g_sessions;
+
+void SetCertVerifyProcInIO(
+    const scoped_refptr<net::URLRequestContextGetter>& context_getter,
+    const AtomCertVerifier::VerifyProc& proc) {
+  auto* request_context = context_getter->GetURLRequestContext();
+  static_cast<AtomCertVerifier*>(request_context->cert_verifier())
+      ->SetVerifyProc(proc);
+}
 
 void DownloadIdCallback(content::DownloadManager* download_manager,
                         const base::FilePath& path,
@@ -464,17 +472,26 @@ void Session::SetCertVerifyProc(v8::Local<v8::Value> val,
     return;
   }
 
-  network::mojom::CertVerifierClientPtr cert_verifier_client;
-  if (proc) {
-    mojo::MakeStrongBinding(std::make_unique<ElectronCertVerifierClient>(proc),
-                            mojo::MakeRequest(&cert_verifier_client));
-  }
-  content::BrowserContext::GetDefaultStoragePartition(browser_context_.get())
-      ->GetNetworkContext()
-      ->SetCertVerifierClient(std::move(cert_verifier_client));
+  if (base::FeatureList::IsEnabled(network::features::kNetworkService)) {
+    network::mojom::CertVerifierClientPtr cert_verifier_client;
+    if (proc) {
+      mojo::MakeStrongBinding(
+          std::make_unique<ElectronCertVerifierClient>(proc),
+          mojo::MakeRequest(&cert_verifier_client));
+    }
+    content::BrowserContext::GetDefaultStoragePartition(browser_context_.get())
+        ->GetNetworkContext()
+        ->SetCertVerifierClient(std::move(cert_verifier_client));
 
-  // This causes the cert verifier cache to be cleared.
-  content::GetNetworkService()->OnCertDBChanged();
+    // This causes the cert verifier cache to be cleared.
+    content::GetNetworkService()->OnCertDBChanged();
+  } else {
+    base::PostTaskWithTraits(
+        FROM_HERE, {BrowserThread::IO},
+        base::BindOnce(&SetCertVerifyProcInIO,
+                       WrapRefCounted(browser_context_->GetRequestContext()),
+                       base::BindRepeating(&WrapVerifyProc, proc)));
+  }
 }
 
 void Session::SetPermissionRequestHandler(v8::Local<v8::Value> val,
@@ -552,8 +569,6 @@ void Session::AllowNTLMCredentialsForDomains(const std::string& domains) {
 
 void Session::SetUserAgent(const std::string& user_agent,
                            mate::Arguments* args) {
-  CHECK(false) << "TODO";
-  /*
   browser_context_->SetUserAgent(user_agent);
 
   std::string accept_lang = g_browser_process->GetApplicationLocale();
@@ -564,7 +579,6 @@ void Session::SetUserAgent(const std::string& user_agent,
   getter->GetNetworkTaskRunner()->PostTask(
       FROM_HERE,
       base::BindOnce(&SetUserAgentInIO, getter, accept_lang, user_agent));
-  */
 }
 
 std::string Session::GetUserAgent() {
@@ -647,7 +661,10 @@ v8::Local<v8::Value> Session::Cookies(v8::Isolate* isolate) {
 v8::Local<v8::Value> Session::Protocol(v8::Isolate* isolate) {
   if (protocol_.IsEmpty()) {
     v8::Local<v8::Value> handle;
-    handle = ProtocolNS::Create(isolate, browser_context()).ToV8();
+    if (base::FeatureList::IsEnabled(network::features::kNetworkService))
+      handle = ProtocolNS::Create(isolate, browser_context()).ToV8();
+    else
+      handle = Protocol::Create(isolate, browser_context()).ToV8();
     protocol_.Reset(isolate, handle);
   }
   return v8::Local<v8::Value>::New(isolate, protocol_);
@@ -656,7 +673,10 @@ v8::Local<v8::Value> Session::Protocol(v8::Isolate* isolate) {
 v8::Local<v8::Value> Session::WebRequest(v8::Isolate* isolate) {
   if (web_request_.IsEmpty()) {
     v8::Local<v8::Value> handle;
-    handle = WebRequestNS::Create(isolate, browser_context()).ToV8();
+    if (base::FeatureList::IsEnabled(network::features::kNetworkService))
+      handle = WebRequestNS::Create(isolate, browser_context()).ToV8();
+    else
+      handle = WebRequest::Create(isolate, browser_context()).ToV8();
     web_request_.Reset(isolate, handle);
   }
   return v8::Local<v8::Value>::New(isolate, web_request_);
@@ -754,7 +774,7 @@ namespace {
 
 using electron::api::Cookies;
 using electron::api::NetLog;
-using electron::api::ProtocolNS;
+using electron::api::Protocol;
 using electron::api::Session;
 
 v8::Local<v8::Value> FromPartition(const std::string& partition,
@@ -783,9 +803,9 @@ void Initialize(v8::Local<v8::Object> exports,
   dict.Set(
       "NetLog",
       NetLog::GetConstructor(isolate)->GetFunction(context).ToLocalChecked());
-  dict.Set("Protocol", ProtocolNS::GetConstructor(isolate)
-                           ->GetFunction(context)
-                           .ToLocalChecked());
+  dict.Set(
+      "Protocol",
+      Protocol::GetConstructor(isolate)->GetFunction(context).ToLocalChecked());
   dict.SetMethod("fromPartition", &FromPartition);
 }
 
