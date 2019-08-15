@@ -681,13 +681,13 @@ bool AtomBrowserClient::CanCreateWindow(
 
 void AtomBrowserClient::GetAdditionalAllowedSchemesForFileSystem(
     std::vector<std::string>* additional_schemes) {
-  // TODO
-  /*
-  auto schemes_list = api::GetStandardSchemes();
-  if (!schemes_list.empty())
-    additional_schemes->insert(additional_schemes->end(), schemes_list.begin(),
-                               schemes_list.end());
-                               */
+  // TODO(nornagon): uncomment with correct fix
+  // auto schemes_list = api::GetStandardSchemes();
+  // if (!schemes_list.empty())
+  //   additional_schemes->insert(additional_schemes->end(),
+  //   schemes_list.begin(),
+  //                              schemes_list.end());
+
   additional_schemes->push_back(content::kChromeDevToolsScheme);
 }
 
