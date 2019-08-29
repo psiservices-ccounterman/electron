@@ -10,7 +10,7 @@ gclient_gn_args = [
 
 vars = {
   'chromium_version':
-    '76.0.3809.135',
+    '76.0.3809.137',
   'node_version':
     'v12.4.0',
 
@@ -30,6 +30,9 @@ vars = {
 
   # To be able to build clean Chromium from sources.
   'apply_patches': True,
+
+  # Apply the patches specific to windows on arm64
+  'apply_win_arm64_patches': False,
 
   # Python interface to Amazon Web Services. Is used for releases only.
   'checkout_boto': False,
@@ -94,6 +97,16 @@ hooks = [
       'python',
       'src/electron/script/apply_all_patches.py',
       'src/electron/patches/common/config.json',
+    ],
+  },
+  {
+    'name': 'patch_chromium',
+    'condition': '(checkout_chromium and apply_patches) and apply_win_arm64_patches',
+    'pattern': 'src/electron',
+    'action': [
+      'python',
+      'src/electron/script/apply_all_patches.py',
+      'src/electron/patches/win_arm64/config.json',
     ],
   },
   {
