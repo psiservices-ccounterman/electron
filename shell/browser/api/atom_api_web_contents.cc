@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-#include "base/message_loop/message_loop.h"
+#include "base/message_loop/message_loop_current.h"
 #include "base/no_destructor.h"
 #include "base/optional.h"
 #include "base/strings/utf_string_conversions.h"
@@ -47,7 +47,6 @@
 #include "native_mate/converter.h"
 #include "native_mate/dictionary.h"
 #include "native_mate/object_template_builder.h"
-#include "net/url_request/url_request_context.h"
 #include "shell/browser/api/atom_api_browser_window.h"
 #include "shell/browser/api/atom_api_debugger.h"
 #include "shell/browser/api/atom_api_session.h"
@@ -60,7 +59,6 @@
 #include "shell/browser/child_web_contents_tracker.h"
 #include "shell/browser/lib/bluetooth_chooser.h"
 #include "shell/browser/native_window.h"
-#include "shell/browser/net/atom_network_delegate.h"
 #include "shell/browser/session_preferences.h"
 #include "shell/browser/ui/drag_util.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
@@ -101,6 +99,12 @@
 
 #if !defined(OS_MACOSX)
 #include "ui/aura/window.h"
+#else
+#include "ui/base/cocoa/defaults_utils.h"
+#endif
+
+#if defined(OS_LINUX)
+#include "ui/views/linux_ui/linux_ui.h"
 #endif
 
 #if defined(OS_LINUX) || defined(OS_WIN)
@@ -456,6 +460,25 @@ void WebContents::InitWithSessionAndOptions(
   prefs->use_autohinter = params->autohinter;
   prefs->use_bitmaps = params->use_bitmaps;
   prefs->subpixel_rendering = params->subpixel_rendering;
+#endif
+
+// Honor the system's cursor blink rate settings
+#if defined(OS_MACOSX)
+  base::TimeDelta interval;
+  if (ui::TextInsertionCaretBlinkPeriod(&interval))
+    prefs->caret_blink_interval = interval;
+#elif defined(OS_LINUX)
+  views::LinuxUI* linux_ui = views::LinuxUI::instance();
+  if (linux_ui)
+    prefs->caret_blink_interval = linux_ui->GetCursorBlinkInterval();
+#elif defined(OS_WIN)
+  const auto system_msec = ::GetCaretBlinkTime();
+  if (system_msec != 0) {
+    prefs->caret_blink_interval =
+        (system_msec == INFINITE)
+            ? base::TimeDelta()
+            : base::TimeDelta::FromMilliseconds(system_msec);
+  }
 #endif
 
   // Save the preferences in C++.
