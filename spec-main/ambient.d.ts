@@ -16,6 +16,7 @@ declare namespace Electron {
 
   interface WebContents {
     getOwnerBrowserWindow(): BrowserWindow;
+    getWebPreferences(): any;
   }
 
   interface Session {
@@ -28,6 +29,9 @@ declare namespace Electron {
     setContentView(view: View): void
   }
   class View {}
+  class WebContentsView {
+    constructor(webContents: WebContents)
+  }
 }
 
 declare module 'dbus-native';

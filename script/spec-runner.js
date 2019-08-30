@@ -8,8 +8,8 @@ const path = require('path')
 const unknownFlags = []
 
 require('colors')
-const pass = '\u2713'.green
-const fail = '\u2717'.red
+const pass = '✓'.green
+const fail = '✗'.red
 
 const args = require('minimist')(process.argv, {
   string: ['runners'],
@@ -95,7 +95,7 @@ async function runElectronTests () {
 
   const testResultsDir = process.env.ELECTRON_TEST_RESULTS_DIR
   for (const [runnerId, { description, run }] of runners) {
-    if (runnersToRun && runnersToRun.includes(runnerId)) {
+    if (runnersToRun && !runnersToRun.includes(runnerId)) {
       console.info('\nSkipping:', description)
       continue
     }
