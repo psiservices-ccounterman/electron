@@ -157,7 +157,7 @@ describe('crashReporter module', () => {
           return
         }
         // TODO(alexeykuzmin): Skip the test instead of marking it as passed.
-        if (process.env.APPVEYOR === 'True') return done()
+        if (process.platform === 'win32') return done()
         this.timeout(specTimeout)
         stopServer = startServer({
           callback (port) {
@@ -413,6 +413,16 @@ describe('crashReporter module', () => {
 
       crashReporter.removeExtraParameter('hello')
       expect(crashReporter.getParameters()).to.not.have.a.property('hello')
+    })
+  })
+
+  describe('when not started', () => {
+    it('does not prevent process from crashing', (done) => {
+      const appPath = path.join(fixtures, 'api', 'cookie-app')
+      const appProcess = childProcess.spawn(process.execPath, [appPath])
+      appProcess.once('close', () => {
+        done()
+      })
     })
   })
 })

@@ -47,6 +47,7 @@
 #include "native_mate/converter.h"
 #include "native_mate/dictionary.h"
 #include "native_mate/object_template_builder.h"
+#include "ppapi/buildflags/buildflags.h"
 #include "shell/browser/api/atom_api_browser_window.h"
 #include "shell/browser/api/atom_api_debugger.h"
 #include "shell/browser/api/atom_api_session.h"
@@ -364,6 +365,9 @@ WebContents::WebContents(v8::Isolate* isolate, const mate::Dictionary& options)
   // Whether to enable DevTools.
   options.Get("devTools", &enable_devtools_);
 
+  bool initially_shown = true;
+  options.Get(options::kShow, &initially_shown);
+
   // Obtain the session.
   std::string partition;
   mate::Handle<api::Session> session;
@@ -418,6 +422,7 @@ WebContents::WebContents(v8::Isolate* isolate, const mate::Dictionary& options)
 #endif
   } else {
     content::WebContents::CreateParams params(session->browser_context());
+    params.initially_hidden = !initially_shown;
     web_contents = content::WebContents::Create(params);
   }
 
@@ -870,10 +875,12 @@ void WebContents::RenderProcessGone(base::TerminationStatus status) {
 
 void WebContents::PluginCrashed(const base::FilePath& plugin_path,
                                 base::ProcessId plugin_pid) {
+#if BUILDFLAG(ENABLE_PLUGINS)
   content::WebPluginInfo info;
   auto* plugin_service = content::PluginService::GetInstance();
   plugin_service->GetPluginInfoByPath(plugin_path, &info);
   Emit("plugin-crashed", info.name, info.version);
+#endif  // BUILDFLAG(ENABLE_PLUIGNS)
 }
 
 void WebContents::MediaStartedPlaying(const MediaPlayerInfo& video_type,

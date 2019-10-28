@@ -26,6 +26,7 @@ if (is_mac) {
   import("//third_party/icu/config.gni")
   import("//ui/gl/features.gni")
   import("//v8/gni/v8.gni")
+  import("build/rules.gni")
 }
 
 if (is_linux) {
@@ -580,9 +581,10 @@ source_set("electron_lib") {
   }
 
   if (enable_desktop_capturer) {
-    if (is_component_build && is_win) {
+    if (is_component_build && !is_linux) {
       # On windows the implementation relies on unexported
-      # DxgiDuplicatorController class.
+      # DxgiDuplicatorController class.  On macOS the implementation
+      # relies on unexported webrtc::GetWindowOwnerPid method.
       deps += [ "//third_party/webrtc/modules/desktop_capture" ]
     }
     sources += [
@@ -653,6 +655,12 @@ if (is_mac) {
   electron_login_helper_name = "$electron_product_name Login Helper"
   electron_framework_version = "A"
   electron_version = read_file("ELECTRON_VERSION", "trim string")
+
+  mac_xib_bundle_data("electron_xibs") {
+    sources = [
+      "shell/common/resources/mac/MainMenu.xib",
+    ]
+  }
 
   bundle_data("electron_framework_resources") {
     public_deps = [
@@ -768,6 +776,7 @@ if (is_mac) {
       ":electron_framework_libraries",
       ":electron_framework_resources",
       ":electron_swiftshader_library",
+      ":electron_xibs",
     ]
     if (!is_mas_build) {
       deps += [ ":electron_crashpad_helper" ]

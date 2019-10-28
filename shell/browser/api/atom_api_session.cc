@@ -29,7 +29,8 @@
 #include "content/public/browser/download_manager_delegate.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/storage_partition.h"
-#include "mojo/public/cpp/bindings/strong_binding.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "native_mate/dictionary.h"
 #include "native_mate/object_template_builder.h"
 #include "net/base/completion_repeating_callback.h"
@@ -40,6 +41,7 @@
 #include "services/network/network_service.h"
 #include "services/network/public/cpp/features.h"
 #include "shell/browser/api/atom_api_cookies.h"
+#include "shell/browser/api/atom_api_data_pipe_holder.h"
 #include "shell/browser/api/atom_api_download_item.h"
 #include "shell/browser/api/atom_api_net_log.h"
 #include "shell/browser/api/atom_api_protocol_ns.h"
@@ -396,14 +398,16 @@ void Session::SetCertVerifyProc(v8::Local<v8::Value> val,
     return;
   }
 
-  network::mojom::CertVerifierClientPtr cert_verifier_client;
+  mojo::PendingRemote<network::mojom::CertVerifierClient>
+      cert_verifier_client_remote;
   if (proc) {
-    mojo::MakeStrongBinding(std::make_unique<CertVerifierClient>(proc),
-                            mojo::MakeRequest(&cert_verifier_client));
+    mojo::MakeSelfOwnedReceiver(
+        std::make_unique<CertVerifierClient>(proc),
+        cert_verifier_client_remote.InitWithNewPipeAndPassReceiver());
   }
   content::BrowserContext::GetDefaultStoragePartition(browser_context_.get())
       ->GetNetworkContext()
-      ->SetCertVerifierClient(std::move(cert_verifier_client));
+      ->SetCertVerifierClient(std::move(cert_verifier_client_remote));
 
   // This causes the cert verifier cache to be cleared.
   content::GetNetworkService()->OnCertDBChanged();
@@ -498,15 +502,14 @@ std::string Session::GetUserAgent() {
 
 v8::Local<v8::Promise> Session::GetBlobData(v8::Isolate* isolate,
                                             const std::string& uuid) {
-  util::Promise promise(isolate);
-  v8::Local<v8::Promise> handle = promise.GetHandle();
+  gin::Handle<DataPipeHolder> holder = DataPipeHolder::From(isolate, uuid);
+  if (holder.IsEmpty()) {
+    util::Promise promise(isolate);
+    promise.RejectWithErrorMessage("Could not get blob data handle");
+    return promise.GetHandle();
+  }
 
-  AtomBlobReader* blob_reader = browser_context()->GetBlobReader();
-  base::PostTaskWithTraits(
-      FROM_HERE, {BrowserThread::IO},
-      base::BindOnce(&AtomBlobReader::StartReading,
-                     base::Unretained(blob_reader), uuid, std::move(promise)));
-  return handle;
+  return holder->ReadAll(isolate);
 }
 
 void Session::CreateInterruptedDownload(const mate::Dictionary& options) {

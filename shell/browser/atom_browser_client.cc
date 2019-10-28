@@ -109,7 +109,6 @@
 
 #if BUILDFLAG(ENABLE_TTS)
 #include "chrome/browser/speech/tts_controller_delegate_impl.h"
-#include "chrome/browser/speech/tts_message_filter.h"
 #endif  // BUILDFLAG(ENABLE_TTS)
 
 #if BUILDFLAG(ENABLE_PRINTING)
@@ -350,10 +349,6 @@ void AtomBrowserClient::RenderProcessWillLaunch(
       process_id, host->GetBrowserContext()));
 #endif
 
-#if BUILDFLAG(ENABLE_TTS)
-  host->AddFilter(new TtsMessageFilter(host->GetBrowserContext()));
-#endif
-
   ProcessPreferences prefs;
   auto* web_preferences =
       WebContentsPreferences::From(GetWebContentsFromProcessID(process_id));
@@ -586,6 +581,16 @@ void AtomBrowserClient::AdjustUtilityServiceProcessCommandLine(
   if (identity.name() == audio::mojom::kServiceName)
     command_line->AppendSwitch(::switches::kMessageLoopTypeUi);
 #endif
+  if (identity.name() == content::mojom::kNetworkServiceName) {
+    // Copy following switches to network service process.
+    static const char* const kCommonSwitchNames[] = {
+        switches::kStandardSchemes,  switches::kSecureSchemes,
+        switches::kBypassCSPSchemes, switches::kCORSSchemes,
+        switches::kFetchSchemes,     switches::kServiceWorkerSchemes};
+    command_line->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
+                                   kCommonSwitchNames,
+                                   base::size(kCommonSwitchNames));
+  }
 }
 
 void AtomBrowserClient::DidCreatePpapiPlugin(content::BrowserPpapiHost* host) {
@@ -1006,7 +1011,7 @@ bool AtomBrowserClient::WillCreateURLLoaderFactory(
   new ProxyingURLLoaderFactory(
       web_request.get(), protocol->intercept_handlers(), render_process_id,
       std::move(proxied_receiver), std::move(target_factory_info),
-      std::move(header_client_receiver));
+      std::move(header_client_receiver), type);
 
   if (bypass_redirect_checks)
     *bypass_redirect_checks = true;

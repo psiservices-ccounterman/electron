@@ -194,8 +194,7 @@ describe('chromium feature', () => {
     })
   })
 
-  // FIXME(robo/nornagon): re-enable these once service workers work
-  describe.skip('navigator.serviceWorker', () => {
+  describe('navigator.serviceWorker', () => {
     it('should register for file scheme', (done) => {
       w = new BrowserWindow({
         show: false,
@@ -1436,9 +1435,9 @@ describe('font fallback', () => {
     const fonts = await getRenderedFonts(html)
     expect(fonts).to.be.an('array')
     expect(fonts).to.have.length(1)
-    expect(fonts[0].familyName).to.equal({
-      'win32': 'Meiryo',
-      'darwin': 'Hiragino Kaku Gothic ProN'
+    expect(fonts[0].familyName).to.be.oneOf({
+      'win32': ['Meiryo', 'Yu Gothic'],
+      'darwin': ['Hiragino Kaku Gothic ProN']
     }[process.platform])
   })
 })
