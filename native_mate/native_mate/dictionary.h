@@ -6,7 +6,7 @@
 #define NATIVE_MATE_NATIVE_MATE_DICTIONARY_H_
 
 #include "native_mate/converter.h"
-#include "native_mate/object_template_builder.h"
+#include "native_mate/object_template_builder_deprecated.h"
 
 namespace mate {
 
@@ -40,6 +40,12 @@ class Dictionary {
 
   static Dictionary CreateEmpty(v8::Isolate* isolate);
 
+  bool Has(base::StringPiece key) const {
+    v8::Local<v8::Context> context = isolate_->GetCurrentContext();
+    v8::Local<v8::String> v8_key = StringToV8(isolate_, key);
+    return internal::IsTrue(GetHandle()->Has(context, v8_key));
+  }
+
   template <typename T>
   bool Get(base::StringPiece key, T* out) const {
     // Check for existence before getting, otherwise this method will always
@@ -56,38 +62,12 @@ class Dictionary {
   }
 
   template <typename T>
-  bool GetHidden(base::StringPiece key, T* out) const {
-    v8::Local<v8::Context> context = isolate_->GetCurrentContext();
-    v8::Local<v8::Private> privateKey =
-        v8::Private::ForApi(isolate_, StringToV8(isolate_, key));
-    v8::Local<v8::Value> value;
-    v8::Maybe<bool> result = GetHandle()->HasPrivate(context, privateKey);
-    if (internal::IsTrue(result) &&
-        GetHandle()->GetPrivate(context, privateKey).ToLocal(&value))
-      return ConvertFromV8(isolate_, value, out);
-    return false;
-  }
-
-  template <typename T>
   bool Set(base::StringPiece key, const T& val) {
     v8::Local<v8::Value> v8_value;
     if (!TryConvertToV8(isolate_, val, &v8_value))
       return false;
     v8::Maybe<bool> result = GetHandle()->Set(
         isolate_->GetCurrentContext(), StringToV8(isolate_, key), v8_value);
-    return !result.IsNothing() && result.FromJust();
-  }
-
-  template <typename T>
-  bool SetHidden(base::StringPiece key, T val) {
-    v8::Local<v8::Value> v8_value;
-    if (!TryConvertToV8(isolate_, val, &v8_value))
-      return false;
-    v8::Local<v8::Context> context = isolate_->GetCurrentContext();
-    v8::Local<v8::Private> privateKey =
-        v8::Private::ForApi(isolate_, StringToV8(isolate_, key));
-    v8::Maybe<bool> result =
-        GetHandle()->SetPrivate(context, privateKey, v8_value);
     return !result.IsNothing() && result.FromJust();
   }
 
@@ -99,6 +79,17 @@ class Dictionary {
     v8::Maybe<bool> result = GetHandle()->DefineOwnProperty(
         isolate_->GetCurrentContext(), StringToV8(isolate_, key), v8_value,
         v8::ReadOnly);
+    return !result.IsNothing() && result.FromJust();
+  }
+
+  template <typename T>
+  bool SetReadOnlyNonConfigurable(base::StringPiece key, T val) {
+    v8::Local<v8::Value> v8_value;
+    if (!TryConvertToV8(isolate_, val, &v8_value))
+      return false;
+    v8::Maybe<bool> result = GetHandle()->DefineOwnProperty(
+        isolate_->GetCurrentContext(), StringToV8(isolate_, key), v8_value,
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete));
     return !result.IsNothing() && result.FromJust();
   }
 
@@ -140,5 +131,23 @@ struct Converter<Dictionary> {
 };
 
 }  // namespace mate
+
+namespace gin {
+
+// Keep compatibility with gin.
+template <>
+struct Converter<mate::Dictionary> {
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   const mate::Dictionary& in) {
+    return mate::ConvertToV8(isolate, in);
+  }
+  static bool FromV8(v8::Isolate* isolate,
+                     v8::Local<v8::Value> val,
+                     mate::Dictionary* out) {
+    return mate::ConvertFromV8(isolate, val, out);
+  }
+};
+
+}  // namespace gin
 
 #endif  // NATIVE_MATE_NATIVE_MATE_DICTIONARY_H_

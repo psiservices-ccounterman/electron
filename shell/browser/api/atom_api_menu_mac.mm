@@ -30,8 +30,7 @@ namespace electron {
 
 namespace api {
 
-MenuMac::MenuMac(v8::Isolate* isolate, v8::Local<v8::Object> wrapper)
-    : Menu(isolate, wrapper), weak_factory_(this) {}
+MenuMac::MenuMac(gin::Arguments* args) : Menu(args), weak_factory_(this) {}
 
 MenuMac::~MenuMac() = default;
 
@@ -48,7 +47,7 @@ void MenuMac::PopupAt(TopLevelWindow* window,
       base::BindOnce(&MenuMac::PopupOnUI, weak_factory_.GetWeakPtr(),
                      native_window->GetWeakPtr(), window->weak_map_id(), x, y,
                      positioning_item, callback);
-  base::PostTaskWithTraits(FROM_HERE, {BrowserThread::UI}, std::move(popup));
+  base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(popup));
 }
 
 void MenuMac::PopupOnUI(const base::WeakPtr<NativeWindow>& native_window,
@@ -117,6 +116,13 @@ void MenuMac::PopupOnUI(const base::WeakPtr<NativeWindow>& native_window,
 }
 
 void MenuMac::ClosePopupAt(int32_t window_id) {
+  auto close_popup = base::BindOnce(&MenuMac::ClosePopupOnUI,
+                                    weak_factory_.GetWeakPtr(), window_id);
+  base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                   std::move(close_popup));
+}
+
+void MenuMac::ClosePopupOnUI(int32_t window_id) {
   auto controller = popup_controllers_.find(window_id);
   if (controller != popup_controllers_.end()) {
     // Close the controller for the window.
@@ -166,8 +172,8 @@ void Menu::SendActionToFirstResponder(const std::string& action) {
 }
 
 // static
-mate::WrappableBase* Menu::New(mate::Arguments* args) {
-  return new MenuMac(args->isolate(), args->GetThis());
+mate::WrappableBase* Menu::New(gin::Arguments* args) {
+  return new MenuMac(args);
 }
 
 }  // namespace api

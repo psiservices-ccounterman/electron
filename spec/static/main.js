@@ -42,6 +42,9 @@ ipcMain.on('message', function (event, ...args) {
   event.sender.send('message', ...args)
 })
 
+ipcMain.handle('get-temp-dir', () => app.getPath('temp'))
+ipcMain.handle('ping', () => null)
+
 // Set productName so getUploadedReports() uses the right directory in specs
 if (process.platform !== 'darwin') {
   crashReporter.productName = 'Zombies'
@@ -72,11 +75,6 @@ ipcMain.on('echo', function (event, msg) {
 })
 
 global.setTimeoutPromisified = util.promisify(setTimeout)
-
-global.permissionChecks = {
-  allow: () => electron.session.defaultSession.setPermissionCheckHandler(null),
-  reject: () => electron.session.defaultSession.setPermissionCheckHandler(() => false)
-}
 
 global.isCi = !!argv.ci
 if (global.isCi) {
@@ -152,23 +150,9 @@ app.on('ready', function () {
     console.error('Renderer process crashed')
     process.exit(1)
   })
-
-  ipcMain.on('prevent-next-input-event', (event, key, id) => {
-    webContents.fromId(id).once('before-input-event', (event, input) => {
-      if (key === input.key) event.preventDefault()
-    })
-    event.returnValue = null
-  })
-})
-
-ipcMain.on('handle-next-ipc-message-sync', function (event, returnValue) {
-  event.sender.once('ipc-message-sync', (event, channel, args) => {
-    event.returnValue = returnValue
-  })
 })
 
 for (const eventName of [
-  'desktop-capturer-get-sources',
   'remote-get-guest-web-contents'
 ]) {
   ipcMain.on(`handle-next-${eventName}`, function (event, returnValue) {
@@ -195,21 +179,6 @@ ipcMain.on('set-client-certificate-option', function (event, skip) {
     }
   })
   event.returnValue = 'done'
-})
-
-ipcMain.on('create-window-with-options-cycle', (event) => {
-  // This can't be done over remote since cycles are already
-  // nulled out at the IPC layer
-  const foo = {}
-  foo.bar = foo
-  foo.baz = {
-    hello: {
-      world: true
-    }
-  }
-  foo.baz2 = foo.baz
-  const window = new BrowserWindow({ show: false, foo: foo })
-  event.returnValue = window.id
 })
 
 ipcMain.on('prevent-next-will-attach-webview', (event) => {

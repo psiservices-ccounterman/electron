@@ -10,18 +10,18 @@
 #include "base/command_line.h"
 #include "content/public/renderer/render_frame.h"
 #include "electron/buildflags/buildflags.h"
-#include "native_mate/dictionary.h"
 #include "shell/common/api/electron_bindings.h"
-#include "shell/common/api/event_emitter_caller.h"
 #include "shell/common/asar/asar_util.h"
+#include "shell/common/gin_helper/dictionary.h"
+#include "shell/common/gin_helper/event_emitter_caller.h"
 #include "shell/common/node_bindings.h"
 #include "shell/common/node_includes.h"
+#include "shell/common/node_util.h"
 #include "shell/common/options_switches.h"
 #include "shell/renderer/atom_render_frame_observer.h"
 #include "shell/renderer/web_worker_observer.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_local_frame.h"
-#include "third_party/electron_node/src/node_native_module_env.h"
 
 namespace electron {
 
@@ -56,7 +56,8 @@ void AtomRendererClient::RunScriptsAtDocumentStart(
   v8::HandleScope handle_scope(v8::Isolate::GetCurrent());
   node::Environment* env = GetEnvironment(render_frame);
   if (env)
-    mate::EmitEvent(env->isolate(), env->process_object(), "document-start");
+    gin_helper::EmitEvent(env->isolate(), env->process_object(),
+                          "document-start");
 }
 
 void AtomRendererClient::RunScriptsAtDocumentEnd(
@@ -66,7 +67,8 @@ void AtomRendererClient::RunScriptsAtDocumentEnd(
   v8::HandleScope handle_scope(v8::Isolate::GetCurrent());
   node::Environment* env = GetEnvironment(render_frame);
   if (env)
-    mate::EmitEvent(env->isolate(), env->process_object(), "document-end");
+    gin_helper::EmitEvent(env->isolate(), env->process_object(),
+                          "document-end");
 }
 
 void AtomRendererClient::DidCreateScriptContext(
@@ -119,11 +121,10 @@ void AtomRendererClient::DidCreateScriptContext(
     node::tracing::TraceEventHelper::SetAgent(node::CreateAgent());
 
   // Setup node environment for each window.
-  v8::Local<v8::Context> context =
-      node::MaybeInitializeContext(renderer_context);
-  DCHECK(!context.IsEmpty());
+  DCHECK(node::InitializeContext(renderer_context));
   node::Environment* env =
-      node_bindings_->CreateEnvironment(context, nullptr, true);
+      node_bindings_->CreateEnvironment(renderer_context, nullptr, true);
+
   // If we have disabled the site instance overrides we should prevent loading
   // any non-context aware native module
   if (command_line->HasSwitch(switches::kDisableElectronSiteInstanceOverrides))
@@ -135,7 +136,7 @@ void AtomRendererClient::DidCreateScriptContext(
   // Add Electron extended APIs.
   electron_bindings_->BindTo(env->isolate(), env->process_object());
   AddRenderBindings(env->isolate(), env->process_object());
-  mate::Dictionary process_dict(env->isolate(), env->process_object());
+  gin_helper::Dictionary process_dict(env->isolate(), env->process_object());
   process_dict.SetReadOnly("isMainFrame", render_frame->IsMainFrame());
 
   // Load everything.
@@ -160,7 +161,7 @@ void AtomRendererClient::WillReleaseScriptContext(
   if (environments_.erase(env) == 0)
     return;
 
-  mate::EmitEvent(env->isolate(), env->process_object(), "exit");
+  gin_helper::EmitEvent(env->isolate(), env->process_object(), "exit");
 
   // The main frame may be replaced.
   if (env == node_bindings_->uv_env())
@@ -226,9 +227,8 @@ void AtomRendererClient::SetupMainWorldOverrides(
       env->process_object(),
       GetContext(render_frame->GetWebFrame(), isolate)->Global()};
 
-  node::native_module::NativeModuleEnv::CompileAndCall(
-      context, "electron/js2c/isolated_bundle", &isolated_bundle_params,
-      &isolated_bundle_args, nullptr);
+  util::CompileAndCall(context, "electron/js2c/isolated_bundle",
+                       &isolated_bundle_params, &isolated_bundle_args, nullptr);
 }
 
 void AtomRendererClient::SetupExtensionWorldOverrides(
@@ -254,9 +254,8 @@ void AtomRendererClient::SetupExtensionWorldOverrides(
       GetContext(render_frame->GetWebFrame(), isolate)->Global(),
       v8::Integer::New(isolate, world_id)};
 
-  node::native_module::NativeModuleEnv::CompileAndCall(
-      context, "electron/js2c/content_script_bundle", &isolated_bundle_params,
-      &isolated_bundle_args, nullptr);
+  util::CompileAndCall(context, "electron/js2c/content_script_bundle",
+                       &isolated_bundle_params, &isolated_bundle_args, nullptr);
 #endif
 }
 

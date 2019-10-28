@@ -5,7 +5,6 @@
 #include "base/path_service.h"
 #include "shell/browser/api/atom_api_app.h"
 #include "shell/browser/atom_paths.h"
-#include "shell/common/native_mate_converters/file_path_converter.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -13,7 +12,7 @@ namespace electron {
 
 namespace api {
 
-void App::SetAppLogsPath(util::ErrorThrower thrower,
+void App::SetAppLogsPath(gin_helper::ErrorThrower thrower,
                          base::Optional<base::FilePath> custom_path) {
   if (custom_path.has_value()) {
     if (!custom_path->IsAbsolute()) {

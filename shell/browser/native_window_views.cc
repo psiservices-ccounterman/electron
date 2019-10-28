@@ -18,7 +18,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/desktop_media_id.h"
-#include "native_mate/dictionary.h"
 #include "shell/browser/api/atom_api_web_contents.h"
 #include "shell/browser/native_browser_view_views.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
@@ -28,7 +27,8 @@
 #include "shell/browser/web_view_manager.h"
 #include "shell/browser/window_list.h"
 #include "shell/common/atom_constants.h"
-#include "shell/common/native_mate_converters/image_converter.h"
+#include "shell/common/gin_converters/image_converter.h"
+#include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/options_switches.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/hit_test.h"
@@ -126,7 +126,7 @@ class NativeWindowClientView : public views::ClientView {
 
 }  // namespace
 
-NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
+NativeWindowViews::NativeWindowViews(const gin_helper::Dictionary& options,
                                      NativeWindow* parent)
     : NativeWindow(options, parent),
       root_view_(new RootView(this)),
@@ -209,7 +209,7 @@ NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
 
 #if defined(USE_X11)
   // Start monitoring window states.
-  window_state_watcher_.reset(new WindowStateWatcher(this));
+  window_state_watcher_ = std::make_unique<WindowStateWatcher>(this);
 
   // Set _GTK_THEME_VARIANT to dark if we have "dark-theme" option set.
   bool use_dark_theme = false;
@@ -274,7 +274,7 @@ NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
   if (has_frame()) {
     // TODO(zcbenz): This was used to force using native frame on Windows 2003,
     // we should check whether setting it in InitParams can work.
-    widget()->set_frame_type(views::Widget::FrameType::FRAME_TYPE_FORCE_NATIVE);
+    widget()->set_frame_type(views::Widget::FrameType::kForceNative);
     widget()->FrameTypeChanged();
 #if defined(OS_WIN)
     // thickFrame also works for normal window.
@@ -477,7 +477,7 @@ void NativeWindowViews::SetEnabledInternal(bool enable) {
     tree_host->RemoveEventRewriter(event_disabler_.get());
     event_disabler_.reset();
   } else {
-    event_disabler_.reset(new EventDisabler);
+    event_disabler_ = std::make_unique<EventDisabler>();
     tree_host->AddEventRewriter(event_disabler_.get());
   }
 #endif
@@ -794,8 +794,7 @@ bool NativeWindowViews::IsClosable() {
 
 void NativeWindowViews::SetAlwaysOnTop(ui::ZOrderLevel z_order,
                                        const std::string& level,
-                                       int relativeLevel,
-                                       std::string* error) {
+                                       int relativeLevel) {
   bool level_changed = z_order != widget()->GetZOrderLevel();
   widget()->SetZOrderLevel(z_order);
 
@@ -997,7 +996,7 @@ void NativeWindowViews::SetMenu(AtomMenuModel* menu_model) {
   }
 
   if (!global_menu_bar_ && ShouldUseGlobalMenuBar())
-    global_menu_bar_.reset(new GlobalMenuBarX11(this));
+    global_menu_bar_ = std::make_unique<GlobalMenuBarX11>(this);
 
   // Use global application menu bar when possible.
   if (global_menu_bar_ && global_menu_bar_->IsServerStarted()) {
@@ -1205,11 +1204,13 @@ gfx::Rect NativeWindowViews::ContentBoundsToWindowBounds(
 
   gfx::Rect window_bounds(bounds);
 #if defined(OS_WIN)
-  HWND hwnd = GetAcceleratedWidget();
-  gfx::Rect dpi_bounds = DIPToScreenRect(hwnd, bounds);
-  window_bounds = ScreenToDIPRect(
-      hwnd,
-      widget()->non_client_view()->GetWindowBoundsForClientBounds(dpi_bounds));
+  if (widget()->non_client_view()) {
+    HWND hwnd = GetAcceleratedWidget();
+    gfx::Rect dpi_bounds = DIPToScreenRect(hwnd, bounds);
+    window_bounds = ScreenToDIPRect(
+        hwnd, widget()->non_client_view()->GetWindowBoundsForClientBounds(
+                  dpi_bounds));
+  }
 #endif
 
   if (root_view_->HasMenu() && root_view_->IsMenuBarVisible()) {
@@ -1453,7 +1454,7 @@ void NativeWindowViews::MoveBehindTaskBarIfNeeded() {
 }
 
 // static
-NativeWindow* NativeWindow::Create(const mate::Dictionary& options,
+NativeWindow* NativeWindow::Create(const gin_helper::Dictionary& options,
                                    NativeWindow* parent) {
   return new NativeWindowViews(options, parent);
 }

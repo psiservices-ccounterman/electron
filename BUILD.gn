@@ -4,6 +4,7 @@ import("//build/config/win/manifest.gni")
 import("//content/public/app/mac_helpers.gni")
 import("//pdf/features.gni")
 import("//printing/buildflags/buildflags.gni")
+import("//testing/test.gni")
 import("//third_party/ffmpeg/ffmpeg_options.gni")
 import("//tools/generate_library_loader/generate_library_loader.gni")
 import("//tools/grit/grit_rule.gni")
@@ -26,6 +27,7 @@ if (is_mac) {
   import("//third_party/icu/config.gni")
   import("//ui/gl/features.gni")
   import("//v8/gni/v8.gni")
+  import("build/rules.gni")
 }
 
 if (is_linux) {
@@ -58,6 +60,10 @@ config("branding") {
     "ELECTRON_PRODUCT_NAME=\"$electron_product_name\"",
     "ELECTRON_PROJECT_NAME=\"$electron_project_name\"",
   ]
+}
+
+config("electron_lib_config") {
+  include_dirs = [ "." ]
 }
 
 # We geneate the definitions twice here, once in //electron/electron.d.ts
@@ -280,6 +286,7 @@ if (is_linux) {
       "notify_notification_add_action",
       "notify_notification_set_image_from_pixbuf",
       "notify_notification_set_timeout",
+      "notify_notification_set_urgency",
       "notify_notification_set_hint_string",
       "notify_notification_show",
       "notify_notification_close",
@@ -332,7 +339,10 @@ source_set("electron_lib") {
   configs += [ "//v8:external_startup_data" ]
   configs += [ "//third_party/electron_node:node_internals" ]
 
-  public_configs = [ ":branding" ]
+  public_configs = [
+    ":branding",
+    ":electron_lib_config",
+  ]
 
   deps = [
     ":atom_js2c",
@@ -474,6 +484,19 @@ source_set("electron_lib") {
       "//content/common:mac_helpers",
       "//ui/accelerated_widget_mac",
     ]
+
+    libs = [
+      "AVFoundation.framework",
+      "Carbon.framework",
+      "LocalAuthentication.framework",
+      "QuartzCore.framework",
+      "Quartz.framework",
+      "Security.framework",
+      "SecurityInterface.framework",
+      "ServiceManagement.framework",
+      "StoreKit.framework",
+    ]
+
     sources += [
       "shell/browser/ui/views/autofill_popup_view.cc",
       "shell/browser/ui/views/autofill_popup_view.h",
@@ -579,6 +602,17 @@ source_set("electron_lib") {
     ]
   }
 
+  if (enable_remote_module) {
+    sources += [
+      "shell/common/api/remote/object_life_monitor.cc",
+      "shell/common/api/remote/object_life_monitor.h",
+      "shell/common/api/remote/remote_callback_freer.cc",
+      "shell/common/api/remote/remote_callback_freer.h",
+      "shell/common/api/remote/remote_object_freer.cc",
+      "shell/common/api/remote/remote_object_freer.h",
+    ]
+  }
+
   if (enable_desktop_capturer) {
     if (is_component_build && !is_linux) {
       # On windows the implementation relies on unexported
@@ -654,6 +688,12 @@ if (is_mac) {
   electron_login_helper_name = "$electron_product_name Login Helper"
   electron_framework_version = "A"
   electron_version = read_file("ELECTRON_VERSION", "trim string")
+
+  mac_xib_bundle_data("electron_xibs") {
+    sources = [
+      "shell/common/resources/mac/MainMenu.xib",
+    ]
+  }
 
   bundle_data("electron_framework_resources") {
     public_deps = [
@@ -762,6 +802,7 @@ if (is_mac) {
       "Libraries",
     ]
     public_deps = [
+      ":electron_framework_libraries",
       ":electron_lib",
     ]
     deps = [
@@ -769,6 +810,7 @@ if (is_mac) {
       ":electron_framework_libraries",
       ":electron_framework_resources",
       ":electron_swiftshader_library",
+      ":electron_xibs",
     ]
     if (!is_mas_build) {
       deps += [ ":electron_crashpad_helper" ]
@@ -782,18 +824,6 @@ if (is_mac) {
 
     include_dirs = [ "." ]
     sources = filenames.framework_sources
-
-    libs = [
-      "AVFoundation.framework",
-      "Carbon.framework",
-      "LocalAuthentication.framework",
-      "QuartzCore.framework",
-      "Quartz.framework",
-      "Security.framework",
-      "SecurityInterface.framework",
-      "ServiceManagement.framework",
-      "StoreKit.framework",
-    ]
 
     if (enable_osr) {
       libs += [ "IOSurface.framework" ]
@@ -1174,6 +1204,37 @@ if (is_mac) {
         ":swiftshader_gles_symbols",
       ]
     }
+  }
+}
+
+test("shell_browser_ui_unittests") {
+  sources = [
+    "//electron/shell/browser/ui/accelerator_util_unittests.cc",
+    "//electron/shell/browser/ui/run_all_unittests.cc",
+  ]
+
+  configs += [ ":electron_lib_config" ]
+
+  deps = [
+    ":electron_lib",
+    "//base",
+    "//base/test:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/base",
+    "//ui/strings",
+  ]
+
+  if (is_mac) {
+    # Resolve paths owing to different test executable locations
+    ldflags = [
+      "-F",
+      rebase_path("external_binaries", root_build_dir),
+      "-rpath",
+      "@loader_path",
+      "-rpath",
+      "@executable_path/" + rebase_path("external_binaries", root_build_dir),
+    ]
   }
 }
 

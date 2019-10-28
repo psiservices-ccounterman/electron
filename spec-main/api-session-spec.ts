@@ -83,6 +83,16 @@ describe('session module', () => {
       expect(cs.some(c => c.name === name && c.value === value)).to.equal(true)
     })
 
+    it('gets cookies without url', async () => {
+      const { cookies } = session.defaultSession
+      const name = '1'
+      const value = '1'
+
+      await cookies.set({ url, name, value, expirationDate: (+new Date) / 1000 + 120 })
+      const cs = await cookies.get({ domain: '127.0.0.1' })
+      expect(cs.some(c => c.name === name && c.value === value)).to.equal(true)
+    })
+
     it('yields an error when setting a cookie with missing required fields', async () => {
       const { cookies } = session.defaultSession
       const name = '1'
@@ -240,17 +250,16 @@ describe('session module', () => {
       const port = (downloadServer.address() as AddressInfo).port
       const url = `http://127.0.0.1:${port}/`
 
-      const downloadPrevented: Promise<Electron.DownloadItem> = new Promise(resolve => {
+      const downloadPrevented: Promise<{itemUrl: string, itemFilename: string, item: Electron.DownloadItem}> = new Promise(resolve => {
         w.webContents.session.once('will-download', function (e, item) {
           e.preventDefault()
-          resolve(item)
+          resolve({itemUrl: item.getURL(), itemFilename: item.getFilename(), item})
         })
       })
       w.loadURL(url)
-      const item = await downloadPrevented
-      expect(item.getURL()).to.equal(url)
-      expect(item.getFilename()).to.equal('mockFile.txt')
-      await new Promise(setImmediate)
+      const {item, itemUrl, itemFilename} = await downloadPrevented
+      expect(itemUrl).to.equal(url)
+      expect(itemFilename).to.equal('mockFile.txt')
       expect(() => item.getURL()).to.throw('Object has been destroyed')
     })
   })
@@ -736,7 +745,7 @@ describe('session module', () => {
 
   describe('ses.createInterruptedDownload(options)', () => {
     afterEach(closeAllWindows)
-    it('can create an interrupted download item', (done) => {
+    it('can create an interrupted download item', async () => {
       const downloadFilePath = path.join(__dirname, '..', 'fixtures', 'mock.pdf')
       const options = {
         path: downloadFilePath,
@@ -746,17 +755,16 @@ describe('session module', () => {
         length: 5242880
       }
       const w = new BrowserWindow({ show: false })
-      w.webContents.session.once('will-download', function (e, item) {
-        expect(item.getState()).to.equal('interrupted')
-        item.cancel()
-        expect(item.getURLChain()).to.deep.equal(options.urlChain)
-        expect(item.getMimeType()).to.equal(options.mimeType)
-        expect(item.getReceivedBytes()).to.equal(options.offset)
-        expect(item.getTotalBytes()).to.equal(options.length)
-        expect(item.savePath).to.equal(downloadFilePath)
-        done()
-      })
+      const p = emittedOnce(w.webContents.session, 'will-download')
       w.webContents.session.createInterruptedDownload(options)
+      const [, item] = await p
+      expect(item.getState()).to.equal('interrupted')
+      item.cancel()
+      expect(item.getURLChain()).to.deep.equal(options.urlChain)
+      expect(item.getMimeType()).to.equal(options.mimeType)
+      expect(item.getReceivedBytes()).to.equal(options.offset)
+      expect(item.getTotalBytes()).to.equal(options.length)
+      expect(item.savePath).to.equal(downloadFilePath)
     })
 
     it('can be resumed', async () => {

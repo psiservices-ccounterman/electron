@@ -12,6 +12,10 @@
 #include "base/optional.h"
 #include "native_mate/converter.h"
 
+// =============================== NOTICE ===============================
+// Do not add code here, native_mate is being removed. Any new code
+// should use gin instead.
+
 namespace mate {
 
 // Arguments is a wrapper around v8::FunctionCallbackInfo that integrates
@@ -27,7 +31,7 @@ class Arguments {
 
   template <typename T>
   bool GetHolder(T* out) {
-    return ConvertFromV8(isolate_, info_->Holder(), out);
+    return mate::ConvertFromV8(isolate_, info_->Holder(), out);
   }
 
   template <typename T>
@@ -53,7 +57,7 @@ class Arguments {
       return false;
     }
     v8::Local<v8::Value> val = (*info_)[next_];
-    bool success = ConvertFromV8(isolate_, val, out);
+    bool success = mate::ConvertFromV8(isolate_, val, out);
     if (success)
       next_++;
     return success;
@@ -93,6 +97,7 @@ class Arguments {
   v8::Local<v8::Value> ThrowTypeError(const std::string& message) const;
 
   v8::Isolate* isolate() const { return isolate_; }
+  const v8::FunctionCallbackInfo<v8::Value>& info() const { return *info_; }
 
  private:
   v8::Isolate* isolate_ = nullptr;

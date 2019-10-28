@@ -11,16 +11,15 @@
 #include "base/environment.h"
 #include "base/macros.h"
 #include "base/threading/thread_restrictions.h"
-#include "electron/shell/common/api/event_emitter_caller.h"
-#include "electron/shell/common/node_includes.h"
-#include "electron/shell/common/options_switches.h"
-#include "electron/shell/renderer/atom_render_frame_observer.h"
-#include "electron/shell/renderer/renderer_client_base.h"
 #include "mojo/public/cpp/system/platform_handle.h"
-#include "native_mate/dictionary.h"
 #include "shell/common/atom_constants.h"
+#include "shell/common/gin_converters/blink_converter_gin_adapter.h"
+#include "shell/common/gin_converters/value_converter_gin_adapter.h"
 #include "shell/common/heap_snapshot.h"
-#include "shell/common/native_mate_converters/value_converter.h"
+#include "shell/common/node_includes.h"
+#include "shell/common/options_switches.h"
+#include "shell/renderer/atom_render_frame_observer.h"
+#include "shell/renderer/renderer_client_base.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 
@@ -33,8 +32,7 @@ const char kIpcKey[] = "ipcNative";
 // Gets the private object under kIpcKey
 v8::Local<v8::Object> GetIpcObject(v8::Local<v8::Context> context) {
   auto* isolate = context->GetIsolate();
-  auto binding_key =
-      mate::ConvertToV8(isolate, kIpcKey)->ToString(context).ToLocalChecked();
+  auto binding_key = gin::StringToV8(isolate, kIpcKey);
   auto private_binding_key = v8::Private::ForApi(isolate, binding_key);
   auto global_object = context->Global();
   auto value =
@@ -64,7 +62,7 @@ void InvokeIpcCallback(v8::Local<v8::Context> context,
     callback_scope.reset(new node::CallbackScope(isolate, ipcNative, {0, 0}));
   }
 
-  auto callback_key = mate::ConvertToV8(isolate, callback_name)
+  auto callback_key = gin::ConvertToV8(isolate, callback_name)
                           ->ToString(context)
                           .ToLocalChecked();
   auto callback_value = ipcNative->Get(context, callback_key).ToLocalChecked();
@@ -76,7 +74,7 @@ void InvokeIpcCallback(v8::Local<v8::Context> context,
 void EmitIPCEvent(v8::Local<v8::Context> context,
                   bool internal,
                   const std::string& channel,
-                  const std::vector<base::Value>& args,
+                  v8::Local<v8::Value> args,
                   int32_t sender_id) {
   auto* isolate = context->GetIsolate();
 
@@ -86,8 +84,8 @@ void EmitIPCEvent(v8::Local<v8::Context> context,
                                    v8::MicrotasksScope::kRunMicrotasks);
 
   std::vector<v8::Local<v8::Value>> argv = {
-      mate::ConvertToV8(isolate, internal), mate::ConvertToV8(isolate, channel),
-      mate::ConvertToV8(isolate, args), mate::ConvertToV8(isolate, sender_id)};
+      gin::ConvertToV8(isolate, internal), gin::ConvertToV8(isolate, channel),
+      args, gin::ConvertToV8(isolate, sender_id)};
 
   InvokeIpcCallback(context, "onMessage", argv);
 }
@@ -131,7 +129,7 @@ void ElectronApiServiceImpl::OnConnectionError() {
 void ElectronApiServiceImpl::Message(bool internal,
                                      bool send_to_all,
                                      const std::string& channel,
-                                     base::Value arguments,
+                                     blink::CloneableMessage arguments,
                                      int32_t sender_id) {
   // Don't handle browser messages before document element is created.
   //
@@ -160,8 +158,11 @@ void ElectronApiServiceImpl::Message(bool internal,
   v8::HandleScope handle_scope(isolate);
 
   v8::Local<v8::Context> context = renderer_client_->GetContext(frame, isolate);
+  v8::Context::Scope context_scope(context);
 
-  EmitIPCEvent(context, internal, channel, arguments.GetList(), sender_id);
+  v8::Local<v8::Value> args = gin::ConvertToV8(isolate, arguments);
+
+  EmitIPCEvent(context, internal, channel, args, sender_id);
 
   // Also send the message to all sub-frames.
   // TODO(MarshallOfSound): Completely move this logic to the main process
@@ -171,11 +172,37 @@ void ElectronApiServiceImpl::Message(bool internal,
       if (child->IsWebLocalFrame()) {
         v8::Local<v8::Context> child_context =
             renderer_client_->GetContext(child->ToWebLocalFrame(), isolate);
-        EmitIPCEvent(child_context, internal, channel, arguments.GetList(),
-                     sender_id);
+        EmitIPCEvent(child_context, internal, channel, args, sender_id);
       }
   }
 }
+
+#if BUILDFLAG(ENABLE_REMOTE_MODULE)
+void ElectronApiServiceImpl::DereferenceRemoteJSCallback(
+    const std::string& context_id,
+    int32_t object_id) {
+  const auto* channel = "ELECTRON_RENDERER_RELEASE_CALLBACK";
+  if (!document_created_)
+    return;
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+  if (!frame)
+    return;
+
+  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::HandleScope handle_scope(isolate);
+
+  v8::Local<v8::Context> context = renderer_client_->GetContext(frame, isolate);
+  v8::Context::Scope context_scope(context);
+
+  base::ListValue args;
+  args.AppendString(context_id);
+  args.AppendInteger(object_id);
+
+  v8::Local<v8::Value> v8_args = gin::ConvertToV8(isolate, args);
+  EmitIPCEvent(context, true /* internal */, channel, v8_args,
+               0 /* sender_id */);
+}
+#endif
 
 void ElectronApiServiceImpl::UpdateCrashpadPipeName(
     const std::string& pipe_name) {

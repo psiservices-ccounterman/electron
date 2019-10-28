@@ -4,6 +4,8 @@
 
 #include "shell/browser/api/atom_api_app.h"
 
+#include <memory>
+
 #include <string>
 #include <vector>
 
@@ -27,7 +29,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/common/content_switches.h"
 #include "media/audio/audio_manager.h"
-#include "native_mate/object_template_builder.h"
 #include "net/ssl/client_cert_identity.h"
 #include "net/ssl/ssl_cert_request_info.h"
 #include "services/service_manager/sandbox/switches.h"
@@ -42,17 +43,16 @@
 #include "shell/browser/relauncher.h"
 #include "shell/common/application_info.h"
 #include "shell/common/atom_command_line.h"
-#include "shell/common/native_mate_converters/callback.h"
-#include "shell/common/native_mate_converters/file_path_converter.h"
-#include "shell/common/native_mate_converters/gurl_converter.h"
-#include "shell/common/native_mate_converters/image_converter.h"
-#include "shell/common/native_mate_converters/net_converter.h"
-#include "shell/common/native_mate_converters/network_converter.h"
-#include "shell/common/native_mate_converters/once_callback.h"
-#include "shell/common/native_mate_converters/value_converter.h"
+#include "shell/common/gin_converters/callback_converter.h"
+#include "shell/common/gin_converters/file_path_converter.h"
+#include "shell/common/gin_converters/gurl_converter.h"
+#include "shell/common/gin_converters/image_converter.h"
+#include "shell/common/gin_converters/net_converter.h"
+#include "shell/common/gin_converters/value_converter_gin_adapter.h"
+#include "shell/common/gin_helper/dictionary.h"
+#include "shell/common/gin_helper/object_template_builder.h"
 #include "shell/common/node_includes.h"
 #include "shell/common/options_switches.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image.h"
 
 #if defined(OS_WIN)
@@ -67,7 +67,7 @@
 
 using electron::Browser;
 
-namespace mate {
+namespace gin {
 
 #if defined(OS_WIN)
 template <>
@@ -76,15 +76,15 @@ struct Converter<electron::ProcessIntegrityLevel> {
                                    electron::ProcessIntegrityLevel value) {
     switch (value) {
       case electron::ProcessIntegrityLevel::Untrusted:
-        return mate::StringToV8(isolate, "untrusted");
+        return StringToV8(isolate, "untrusted");
       case electron::ProcessIntegrityLevel::Low:
-        return mate::StringToV8(isolate, "low");
+        return StringToV8(isolate, "low");
       case electron::ProcessIntegrityLevel::Medium:
-        return mate::StringToV8(isolate, "medium");
+        return StringToV8(isolate, "medium");
       case electron::ProcessIntegrityLevel::High:
-        return mate::StringToV8(isolate, "high");
+        return StringToV8(isolate, "high");
       default:
-        return mate::StringToV8(isolate, "unknown");
+        return StringToV8(isolate, "unknown");
     }
   }
 };
@@ -94,7 +94,7 @@ struct Converter<Browser::UserTask> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      Browser::UserTask* out) {
-    mate::Dictionary dict;
+    gin_helper::Dictionary dict;
     if (!ConvertFromV8(isolate, val, &dict))
       return false;
     if (!dict.Get("program", &(out->program)) ||
@@ -151,7 +151,7 @@ struct Converter<JumpListItem::Type> {
         item_type = "file";
         break;
     }
-    return mate::ConvertToV8(isolate, item_type);
+    return gin::ConvertToV8(isolate, item_type);
   }
 };
 
@@ -160,7 +160,7 @@ struct Converter<JumpListItem> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      JumpListItem* out) {
-    mate::Dictionary dict;
+    gin_helper::Dictionary dict;
     if (!ConvertFromV8(isolate, val, &dict))
       return false;
 
@@ -195,7 +195,7 @@ struct Converter<JumpListItem> {
 
   static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
                                    const JumpListItem& val) {
-    mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+    gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate);
     dict.Set("type", val.type);
 
     switch (val.type) {
@@ -263,7 +263,7 @@ struct Converter<JumpListCategory::Type> {
         category_type = "custom";
         break;
     }
-    return mate::ConvertToV8(isolate, category_type);
+    return gin::ConvertToV8(isolate, category_type);
   }
 };
 
@@ -272,7 +272,7 @@ struct Converter<JumpListCategory> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      JumpListCategory* out) {
-    mate::Dictionary dict;
+    gin_helper::Dictionary dict;
     if (!ConvertFromV8(isolate, val, &dict))
       return false;
 
@@ -336,7 +336,7 @@ struct Converter<Browser::LoginItemSettings> {
   static bool FromV8(v8::Isolate* isolate,
                      v8::Local<v8::Value> val,
                      Browser::LoginItemSettings* out) {
-    mate::Dictionary dict;
+    gin_helper::Dictionary dict;
     if (!ConvertFromV8(isolate, val, &dict))
       return false;
 
@@ -349,7 +349,7 @@ struct Converter<Browser::LoginItemSettings> {
 
   static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
                                    Browser::LoginItemSettings val) {
-    mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+    gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate);
     dict.Set("openAtLogin", val.open_at_login);
     dict.Set("openAsHidden", val.open_as_hidden);
     dict.Set("restoreState", val.restore_state);
@@ -373,7 +373,7 @@ struct Converter<content::CertificateRequestResultType> {
   }
 };
 
-}  // namespace mate
+}  // namespace gin
 
 namespace electron {
 
@@ -457,7 +457,7 @@ void OnClientCertificateSelected(
     v8::Isolate* isolate,
     std::shared_ptr<content::ClientCertificateDelegate> delegate,
     std::shared_ptr<net::ClientCertIdentityList> identities,
-    mate::Arguments* args) {
+    gin_helper::Arguments* args) {
   if (args->Length() == 2) {
     delegate->ContinueWithCertificate(nullptr, nullptr);
     return;
@@ -470,8 +470,8 @@ void OnClientCertificateSelected(
     return;
   }
 
-  mate::Dictionary cert_data;
-  if (!mate::ConvertFromV8(isolate, val, &cert_data)) {
+  gin_helper::Dictionary cert_data;
+  if (!gin::ConvertFromV8(isolate, val, &cert_data)) {
     args->ThrowError("Must pass valid certificate object.");
     return;
   }
@@ -496,7 +496,7 @@ void OnClientCertificateSelected(
 }
 
 void PassLoginInformation(scoped_refptr<LoginHandler> login_handler,
-                          mate::Arguments* args) {
+                          gin_helper::Arguments* args) {
   base::string16 username, password;
   if (args->GetNext(&username) && args->GetNext(&password))
     login_handler->Login(username, password);
@@ -534,7 +534,7 @@ int ImportIntoCertStore(CertificateManagerModel* model,
 
 void OnIconDataAvailable(util::Promise<gfx::Image> promise, gfx::Image icon) {
   if (!icon.IsEmpty()) {
-    promise.Resolve(icon);
+    promise.ResolveWithGin(icon);
   } else {
     promise.RejectWithErrorMessage("Failed to get file icon.");
   }
@@ -749,7 +749,7 @@ base::OnceClosure App::SelectClientCertificate(
   // to avoid changes in the API.
   auto client_certs = net::CertificateList();
   for (const std::unique_ptr<net::ClientCertIdentity>& identity : identities)
-    client_certs.push_back(identity->certificate());
+    client_certs.emplace_back(identity->certificate());
 
   auto shared_identities =
       std::make_shared<net::ClientCertIdentityList>(std::move(identities));
@@ -846,7 +846,7 @@ void App::SetAppPath(const base::FilePath& app_path) {
 }
 
 #if !defined(OS_MACOSX)
-void App::SetAppLogsPath(util::ErrorThrower thrower,
+void App::SetAppLogsPath(gin_helper::ErrorThrower thrower,
                          base::Optional<base::FilePath> custom_path) {
   if (custom_path.has_value()) {
     if (!custom_path->IsAbsolute()) {
@@ -865,7 +865,7 @@ void App::SetAppLogsPath(util::ErrorThrower thrower,
 }
 #endif
 
-base::FilePath App::GetPath(util::ErrorThrower thrower,
+base::FilePath App::GetPath(gin_helper::ErrorThrower thrower,
                             const std::string& name) {
   bool succeed = false;
   base::FilePath path;
@@ -888,7 +888,7 @@ base::FilePath App::GetPath(util::ErrorThrower thrower,
   return path;
 }
 
-void App::SetPath(util::ErrorThrower thrower,
+void App::SetPath(gin_helper::ErrorThrower thrower,
                   const std::string& name,
                   const base::FilePath& path) {
   if (!path.IsAbsolute()) {
@@ -939,9 +939,9 @@ std::string App::GetLocaleCountryCode() {
                      kCFStringEncodingUTF8);
   region = temporaryCString;
 #else
-  const char* locale_ptr = setlocale(LC_TIME, NULL);
+  const char* locale_ptr = setlocale(LC_TIME, nullptr);
   if (!locale_ptr)
-    locale_ptr = setlocale(LC_NUMERIC, NULL);
+    locale_ptr = setlocale(LC_NUMERIC, nullptr);
   if (locale_ptr) {
     std::string locale = locale_ptr;
     std::string::size_type rpos = locale.find('.');
@@ -975,8 +975,8 @@ bool App::RequestSingleInstanceLock() {
 
   auto cb = base::BindRepeating(&App::OnSecondInstance, base::Unretained(this));
 
-  process_singleton_.reset(new ProcessSingleton(
-      user_dir, base::BindRepeating(NotificationCallbackWrapper, cb)));
+  process_singleton_ = std::make_unique<ProcessSingleton>(
+      user_dir, base::BindRepeating(NotificationCallbackWrapper, cb));
 
   switch (process_singleton_->NotifyOtherProcessOrCreate()) {
     case ProcessSingleton::NotifyResult::LOCK_ERROR:
@@ -998,13 +998,13 @@ void App::ReleaseSingleInstanceLock() {
   }
 }
 
-bool App::Relaunch(mate::Arguments* js_args) {
+bool App::Relaunch(gin_helper::Arguments* js_args) {
   // Parse parameters.
   bool override_argv = false;
   base::FilePath exec_path;
   relauncher::StringVector args;
 
-  mate::Dictionary options;
+  gin_helper::Dictionary options;
   if (js_args->GetNext(&options)) {
     if (options.Get("execPath", &exec_path) | options.Get("args", &args))
       override_argv = true;
@@ -1031,7 +1031,7 @@ bool App::Relaunch(mate::Arguments* js_args) {
   return relauncher::RelaunchApp(argv);
 }
 
-void App::DisableHardwareAcceleration(util::ErrorThrower thrower) {
+void App::DisableHardwareAcceleration(gin_helper::ErrorThrower thrower) {
   if (Browser::Get()->is_ready()) {
     thrower.ThrowError(
         "app.disableHardwareAcceleration() can only be called "
@@ -1041,7 +1041,7 @@ void App::DisableHardwareAcceleration(util::ErrorThrower thrower) {
   content::GpuDataManager::GetInstance()->DisableHardwareAcceleration();
 }
 
-void App::DisableDomainBlockingFor3DAPIs(util::ErrorThrower thrower) {
+void App::DisableDomainBlockingFor3DAPIs(gin_helper::ErrorThrower thrower) {
   if (Browser::Get()->is_ready()) {
     thrower.ThrowError(
         "app.disableDomainBlockingFor3DAPIs() can only be called "
@@ -1057,7 +1057,7 @@ bool App::IsAccessibilitySupportEnabled() {
   return ax_state->IsAccessibleBrowser();
 }
 
-void App::SetAccessibilitySupportEnabled(util::ErrorThrower thrower,
+void App::SetAccessibilitySupportEnabled(gin_helper::ErrorThrower thrower,
                                          bool enabled) {
   if (!Browser::Get()->is_ready()) {
     thrower.ThrowError(
@@ -1075,7 +1075,8 @@ void App::SetAccessibilitySupportEnabled(util::ErrorThrower thrower,
   Browser::Get()->OnAccessibilitySupportChanged();
 }
 
-Browser::LoginItemSettings App::GetLoginItemSettings(mate::Arguments* args) {
+Browser::LoginItemSettings App::GetLoginItemSettings(
+    gin_helper::Arguments* args) {
   Browser::LoginItemSettings options;
   args->GetNext(&options);
   return Browser::Get()->GetLoginItemSettings(options);
@@ -1124,18 +1125,18 @@ v8::Local<v8::Value> App::GetJumpListSettings() {
     LOG(ERROR) << "Failed to begin Jump List transaction.";
   }
 
-  auto dict = mate::Dictionary::CreateEmpty(isolate());
+  gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(isolate());
   dict.Set("minItems", min_items);
-  dict.Set("removedItems", mate::ConvertToV8(isolate(), removed_items));
+  dict.Set("removedItems", gin::ConvertToV8(isolate(), removed_items));
   return dict.GetHandle();
 }
 
 JumpListResult App::SetJumpList(v8::Local<v8::Value> val,
-                                mate::Arguments* args) {
+                                gin_helper::Arguments* args) {
   std::vector<JumpListCategory> categories;
   bool delete_jump_list = val->IsNull();
   if (!delete_jump_list &&
-      !mate::ConvertFromV8(args->isolate(), val, &categories)) {
+      !gin::ConvertFromV8(args->isolate(), val, &categories)) {
     args->ThrowError("Argument must be null or an array of categories");
     return JumpListResult::ARGUMENT_ERROR;
   }
@@ -1168,13 +1169,13 @@ JumpListResult App::SetJumpList(v8::Local<v8::Value> val,
 #endif  // defined(OS_WIN)
 
 v8::Local<v8::Promise> App::GetFileIcon(const base::FilePath& path,
-                                        mate::Arguments* args) {
+                                        gin_helper::Arguments* args) {
   util::Promise<gfx::Image> promise(isolate());
   v8::Local<v8::Promise> handle = promise.GetHandle();
   base::FilePath normalized_path = path.NormalizePathSeparators();
 
   IconLoader::IconSize icon_size;
-  mate::Dictionary options;
+  gin_helper::Dictionary options;
   if (!args->GetNext(&options)) {
     icon_size = IconLoader::IconSize::NORMAL;
   } else {
@@ -1187,7 +1188,7 @@ v8::Local<v8::Promise> App::GetFileIcon(const base::FilePath& path,
   gfx::Image* icon =
       icon_manager->LookupIconFromFilepath(normalized_path, icon_size);
   if (icon) {
-    promise.Resolve(*icon);
+    promise.ResolveWithGin(*icon);
   } else {
     icon_manager->LoadIcon(
         normalized_path, icon_size,
@@ -1197,17 +1198,20 @@ v8::Local<v8::Promise> App::GetFileIcon(const base::FilePath& path,
   return handle;
 }
 
-std::vector<mate::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
-  std::vector<mate::Dictionary> result;
+std::vector<gin_helper::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
+  std::vector<gin_helper::Dictionary> result;
   result.reserve(app_metrics_.size());
   int processor_count = base::SysInfo::NumberOfProcessors();
 
   for (const auto& process_metric : app_metrics_) {
-    mate::Dictionary pid_dict = mate::Dictionary::CreateEmpty(isolate);
-    mate::Dictionary cpu_dict = mate::Dictionary::CreateEmpty(isolate);
+    gin_helper::Dictionary pid_dict = gin::Dictionary::CreateEmpty(isolate);
+    gin_helper::Dictionary cpu_dict = gin::Dictionary::CreateEmpty(isolate);
 
-    pid_dict.SetHidden("simple", true);
-    cpu_dict.SetHidden("simple", true);
+    // TODO(zcbenz): Just call SetHidden when this file is converted to gin.
+    gin_helper::Dictionary(isolate, pid_dict.GetHandle())
+        .SetHidden("simple", true);
+    gin_helper::Dictionary(isolate, cpu_dict.GetHandle())
+        .SetHidden("simple", true);
 
     cpu_dict.Set(
         "percentCPUUsage",
@@ -1234,8 +1238,10 @@ std::vector<mate::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
 #if !defined(OS_LINUX)
     auto memory_info = process_metric.second->GetMemoryInfo();
 
-    mate::Dictionary memory_dict = mate::Dictionary::CreateEmpty(isolate);
-    memory_dict.SetHidden("simple", true);
+    gin_helper::Dictionary memory_dict = gin::Dictionary::CreateEmpty(isolate);
+    // TODO(zcbenz): Just call SetHidden when this file is converted to gin.
+    gin_helper::Dictionary(isolate, memory_dict.GetHandle())
+        .SetHidden("simple", true);
     memory_dict.Set("workingSetSize",
                     static_cast<double>(memory_info.working_set_size >> 10));
     memory_dict.Set(
@@ -1268,7 +1274,7 @@ std::vector<mate::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
 v8::Local<v8::Value> App::GetGPUFeatureStatus(v8::Isolate* isolate) {
   auto status = content::GetFeatureStatus();
   base::DictionaryValue temp;
-  return mate::ConvertToV8(isolate, status ? *status : temp);
+  return gin::ConvertToV8(isolate, status ? *status : temp);
 }
 
 v8::Local<v8::Promise> App::GetGPUInfo(v8::Isolate* isolate,
@@ -1314,7 +1320,7 @@ static void RemoveNoSandboxSwitch(base::CommandLine* command_line) {
   }
 }
 
-void App::EnableSandbox(util::ErrorThrower thrower) {
+void App::EnableSandbox(gin_helper::ErrorThrower thrower) {
   if (Browser::Get()->is_ready()) {
     thrower.ThrowError(
         "app.enableSandbox() can only be called "
@@ -1343,15 +1349,16 @@ bool App::CanBrowserClientUseCustomSiteInstance() {
 }
 
 #if defined(OS_MACOSX)
-bool App::MoveToApplicationsFolder(mate::Arguments* args) {
-  return ui::cocoa::AtomBundleMover::Move(args);
+bool App::MoveToApplicationsFolder(gin_helper::ErrorThrower thrower,
+                                   gin::Arguments* args) {
+  return AtomBundleMover::Move(thrower, args);
 }
 
 bool App::IsInApplicationsFolder() {
-  return ui::cocoa::AtomBundleMover::IsCurrentAppInApplicationsFolder();
+  return AtomBundleMover::IsCurrentAppInApplicationsFolder();
 }
 
-int DockBounce(mate::Arguments* args) {
+int DockBounce(gin_helper::Arguments* args) {
   int request_id = -1;
   std::string type = "informational";
   args->GetNext(&type);
@@ -1372,7 +1379,7 @@ v8::Local<v8::Value> App::GetDockAPI(v8::Isolate* isolate) {
     // Initialize the Dock API, the methods are bound to "dock" which exists
     // for the lifetime of "app"
     auto browser = base::Unretained(Browser::Get());
-    mate::Dictionary dock_obj = mate::Dictionary::CreateEmpty(isolate);
+    gin_helper::Dictionary dock_obj = gin::Dictionary::CreateEmpty(isolate);
     dock_obj.SetMethod("bounce", &DockBounce);
     dock_obj.SetMethod(
         "cancelBounce",
@@ -1401,16 +1408,16 @@ v8::Local<v8::Value> App::GetDockAPI(v8::Isolate* isolate) {
 #endif
 
 // static
-mate::Handle<App> App::Create(v8::Isolate* isolate) {
-  return mate::CreateHandle(isolate, new App(isolate));
+gin::Handle<App> App::Create(v8::Isolate* isolate) {
+  return gin::CreateHandle(isolate, new App(isolate));
 }
 
 // static
 void App::BuildPrototype(v8::Isolate* isolate,
                          v8::Local<v8::FunctionTemplate> prototype) {
-  prototype->SetClassName(mate::StringToV8(isolate, "App"));
+  prototype->SetClassName(gin::StringToV8(isolate, "App"));
   auto browser = base::Unretained(Browser::Get());
-  mate::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
+  gin_helper::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
       .SetMethod("quit", base::BindRepeating(&Browser::Quit, browser))
       .SetMethod("exit", base::BindRepeating(&Browser::Exit, browser))
       .SetMethod("focus", base::BindRepeating(&Browser::Focus, browser))
@@ -1542,7 +1549,7 @@ void Initialize(v8::Local<v8::Object> exports,
                 v8::Local<v8::Context> context,
                 void* priv) {
   v8::Isolate* isolate = context->GetIsolate();
-  mate::Dictionary dict(isolate, exports);
+  gin_helper::Dictionary dict(isolate, exports);
   dict.Set("App", electron::api::App::GetConstructor(isolate)
                       ->GetFunction(context)
                       .ToLocalChecked());

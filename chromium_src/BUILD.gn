@@ -43,10 +43,9 @@ static_library("chrome") {
     "//chrome/browser/predictors/proxy_lookup_client_impl.h",
     "//chrome/browser/predictors/resolve_host_client_impl.cc",
     "//chrome/browser/predictors/resolve_host_client_impl.h",
-    "//chrome/browser/printing/printing_service.cc",
-    "//chrome/browser/printing/printing_service.h",
     "//chrome/browser/ssl/security_state_tab_helper.cc",
     "//chrome/browser/ssl/security_state_tab_helper.h",
+    "//chrome/browser/ssl/tls_deprecation_config.cc",
     "//chrome/browser/ui/autofill/popup_view_common.cc",
     "//chrome/browser/ui/autofill/popup_view_common.h",
     "//chrome/browser/win/chrome_process_finder.cc",
@@ -72,6 +71,14 @@ static_library("chrome") {
     sources += [
       "//chrome/browser/extensions/global_shortcut_listener_x11.cc",
       "//chrome/browser/extensions/global_shortcut_listener_x11.h",
+      "//chrome/browser/ui/views/status_icons/concat_menu_model.cc",
+      "//chrome/browser/ui/views/status_icons/concat_menu_model.h",
+      "//chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc",
+      "//chrome/browser/ui/views/status_icons/status_icon_linux_dbus.h",
+    ]
+    public_deps += [
+      "//components/dbus/menu",
+      "//components/dbus/thread_linux",
     ]
   }
 
@@ -135,10 +142,6 @@ static_library("chrome") {
     sources += [
       "//chrome/browser/speech/tts_controller_delegate_impl.cc",
       "//chrome/browser/speech/tts_controller_delegate_impl.h",
-      "//chrome/browser/speech/tts_message_filter.cc",
-      "//chrome/browser/speech/tts_message_filter.h",
-      "//chrome/renderer/tts_dispatcher.cc",
-      "//chrome/renderer/tts_dispatcher.h",
     ]
   }
 
@@ -168,6 +171,8 @@ static_library("chrome") {
       "//chrome/browser/printing/printer_query.h",
       "//chrome/browser/printing/printing_message_filter.cc",
       "//chrome/browser/printing/printing_message_filter.h",
+      "//chrome/browser/printing/printing_service.cc",
+      "//chrome/browser/printing/printing_service.h",
     ]
 
     public_deps += [
@@ -202,8 +207,6 @@ static_library("chrome") {
       "//chrome/browser/ui/views/overlay/back_to_tab_image_button.h",
       "//chrome/browser/ui/views/overlay/close_image_button.cc",
       "//chrome/browser/ui/views/overlay/close_image_button.h",
-      "//chrome/browser/ui/views/overlay/mute_image_button.cc",
-      "//chrome/browser/ui/views/overlay/mute_image_button.h",
       "//chrome/browser/ui/views/overlay/overlay_window_views.cc",
       "//chrome/browser/ui/views/overlay/overlay_window_views.h",
       "//chrome/browser/ui/views/overlay/playback_image_button.cc",
