@@ -11,9 +11,9 @@
 #include "base/callback_list.h"
 #include "gin/handle.h"
 #include "net/cookies/canonical_cookie.h"
-#include "shell/browser/net/cookie_details.h"
+#include "net/cookies/cookie_change_dispatcher.h"
+#include "shell/common/gin_helper/promise.h"
 #include "shell/common/gin_helper/trackable_object.h"
-#include "shell/common/promise_util.h"
 
 namespace base {
 class DictionaryValue;
@@ -47,15 +47,16 @@ class Cookies : public gin_helper::TrackableObject<Cookies> {
   ~Cookies() override;
 
   v8::Local<v8::Promise> Get(const gin_helper::Dictionary& filter);
-  v8::Local<v8::Promise> Set(const base::DictionaryValue& details);
+  v8::Local<v8::Promise> Set(base::DictionaryValue details);
   v8::Local<v8::Promise> Remove(const GURL& url, const std::string& name);
   v8::Local<v8::Promise> FlushStore();
 
   // CookieChangeNotifier subscription:
-  void OnCookieChanged(const CookieDetails*);
+  void OnCookieChanged(const net::CookieChangeInfo& change);
 
  private:
-  std::unique_ptr<base::CallbackList<void(const CookieDetails*)>::Subscription>
+  std::unique_ptr<base::CallbackList<void(
+      const net::CookieChangeInfo& change)>::Subscription>
       cookie_change_subscription_;
   scoped_refptr<AtomBrowserContext> browser_context_;
 

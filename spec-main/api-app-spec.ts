@@ -1,22 +1,16 @@
-import * as chai from 'chai'
-import * as chaiAsPromised from 'chai-as-promised'
+import { expect } from 'chai'
 import * as cp from 'child_process'
 import * as https from 'https'
 import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
-import { homedir } from 'os'
-import split = require('split')
 import { app, BrowserWindow, Menu } from 'electron'
-import { emittedOnce } from './events-helpers';
-import { closeWindow } from './window-helpers';
-import { ifdescribe } from './spec-helpers';
+import { emittedOnce } from './events-helpers'
+import { closeWindow } from './window-helpers'
+import { ifdescribe } from './spec-helpers'
+import split = require('split')
 
 const features = process.electronBinding('features')
-
-const { expect } = chai
-
-chai.use(chaiAsPromised)
 
 const fixturesPath = path.resolve(__dirname, '../spec/fixtures')
 
@@ -129,7 +123,7 @@ describe('app module', () => {
   describe('app.getLocaleCountryCode()', () => {
     it('should be empty or have length of two', () => {
       let expectedLength = 2
-      if (isCI && process.platform === 'linux') {
+      if (process.platform === 'linux') {
         // Linux CI machines have no locale.
         expectedLength = 0
       }
@@ -143,13 +137,7 @@ describe('app module', () => {
     })
   })
 
-  describe('app.isInApplicationsFolder()', () => {
-    before(function () {
-      if (process.platform !== 'darwin') {
-        this.skip()
-      }
-    })
-
+  ifdescribe(process.platform === 'darwin')('app.isInApplicationsFolder()', () => {
     it('should be false during tests', () => {
       expect(app.isInApplicationsFolder()).to.equal(false)
     })
@@ -203,7 +191,7 @@ describe('app module', () => {
       // Singleton will send us greeting data to let us know it's running.
       // After that, ask it to exit gracefully and confirm that it does.
       if (appProcess && appProcess.stdout) {
-        appProcess.stdout.on('data', data => appProcess!.kill())
+        appProcess.stdout.on('data', () => appProcess!.kill())
       }
       const [code, signal] = await emittedOnce(appProcess, 'close')
 
@@ -410,10 +398,9 @@ describe('app module', () => {
       w = new BrowserWindow({ show: false })
     })
 
-    it('should emit renderer-process-crashed event when renderer crashes', async function() {
+    it('should emit renderer-process-crashed event when renderer crashes', async function () {
       // FIXME: re-enable this test on win32.
-      if (process.platform === 'win32')
-        return this.skip()
+      if (process.platform === 'win32') { return this.skip() }
       w = new BrowserWindow({
         show: false,
         webPreferences: {
@@ -651,7 +638,7 @@ describe('app module', () => {
     it('returns whether the Chrome has accessibility APIs enabled', () => {
       expect(app.accessibilitySupportEnabled).to.be.a('boolean')
 
-      //TODO(codebytere): remove when propertyification is complete
+      // TODO(codebytere): remove when propertyification is complete
       expect(app.isAccessibilitySupportEnabled).to.be.a('function')
       expect(app.setAccessibilitySupportEnabled).to.be.a('function')
     })
@@ -676,30 +663,6 @@ describe('app module', () => {
     it('works for files', async () => {
       const { appPath } = await runTestApp('app-path/lib/index.js')
       expect(appPath).to.equal(path.resolve(fixturesPath, 'api/app-path/lib'))
-    })
-  })
-
-  describe('getPath("logs")', () => {
-    const logsPaths = {
-      'darwin': path.resolve(homedir(), 'Library', 'Logs'),
-      'linux': path.resolve(homedir(), 'AppData', app.name),
-      'win32': path.resolve(homedir(), 'AppData', app.name),
-    }
-
-    it('has no logs directory by default', () => {
-      // this won't be deterministic except on CI since
-      // users may or may not have this dir
-      if (!isCI) return
-
-      const osLogPath = (logsPaths as any)[process.platform]
-      expect(fs.existsSync(osLogPath)).to.be.false
-    })
-
-    it('creates a new logs directory if one does not exist', () => {
-      expect(() => { app.getPath('logs') }).to.not.throw()
-
-      const osLogPath = (logsPaths as any)[process.platform]
-      expect(fs.existsSync(osLogPath)).to.be.true
     })
   })
 
@@ -729,9 +692,9 @@ describe('app module', () => {
     it('does not create a new directory by default', () => {
       const badPath = path.join(__dirname, 'music')
 
-      expect(fs.existsSync(badPath)).to.be.false
+      expect(fs.existsSync(badPath)).to.be.false()
       app.setPath('music', badPath)
-      expect(fs.existsSync(badPath)).to.be.false
+      expect(fs.existsSync(badPath)).to.be.false()
 
       expect(() => { app.getPath(badPath as any) }).to.throw()
     })
@@ -883,6 +846,40 @@ describe('app module', () => {
         })
       })
     })
+
+    it('sets the default client such that getApplicationNameForProtocol returns Electron', () => {
+      app.setAsDefaultProtocolClient(protocol)
+      expect(app.getApplicationNameForProtocol(`${protocol}://`)).to.equal('Electron')
+    })
+  })
+
+  describe('getApplicationNameForProtocol()', () => {
+    it('returns application names for common protocols', function () {
+      // We can't expect particular app names here, but these protocols should
+      // at least have _something_ registered. Except on our Linux CI
+      // environment apparently.
+      if (process.platform === 'linux') {
+        this.skip()
+      }
+
+      const protocols = [
+        'http://',
+        'https://'
+      ]
+      protocols.forEach((protocol) => {
+        expect(app.getApplicationNameForProtocol(protocol)).to.not.equal('')
+      })
+    })
+
+    it('returns an empty string for a bogus protocol', () => {
+      expect(app.getApplicationNameForProtocol('bogus-protocol://')).to.equal('')
+    })
+  })
+
+  describe('isDefaultProtocolClient()', () => {
+    it('returns false for a bogus protocol', () => {
+      expect(app.isDefaultProtocolClient('bogus-protocol://')).to.equal(false)
+    })
   })
 
   describe('app launch through uri', () => {
@@ -923,22 +920,14 @@ describe('app module', () => {
     })
   })
 
-  describe('getFileIcon() API', () => {
+  // FIXME Get these specs running on Linux CI
+  ifdescribe(process.platform !== 'linux')('getFileIcon() API', () => {
     const iconPath = path.join(__dirname, 'fixtures/assets/icon.ico')
     const sizes = {
       small: 16,
       normal: 32,
       large: process.platform === 'win32' ? 32 : 48
     }
-
-    // (alexeykuzmin): `.skip()` called in `before`
-    // doesn't affect nested `describe`s.
-    beforeEach(function () {
-      // FIXME Get these specs running on Linux CI
-      if (process.platform === 'linux' && isCI) {
-        this.skip()
-      }
-    })
 
     it('fetches a non-empty icon', async () => {
       const icon = await app.getFileIcon(iconPath)

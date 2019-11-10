@@ -1,13 +1,9 @@
-const chai = require('chai')
-const dirtyChai = require('dirty-chai')
+const { expect } = require('chai')
 const path = require('path')
 const http = require('http')
 const url = require('url')
 const { ipcRenderer } = require('electron')
 const { emittedOnce, waitForEvent } = require('./events-helpers')
-
-const { expect } = chai
-chai.use(dirtyChai)
 
 const features = process.electronBinding('features')
 const nativeModulesEnabled = process.env.ELECTRON_SKIP_NATIVE_MODULE_TESTS
@@ -1022,36 +1018,7 @@ describe('<webview> tag', function () {
       const src = 'about:blank'
       await loadWebView(webview, { src })
 
-      expect(webview.getWebContentsId()).to.be.equal(webview.getWebContents().id)
-    })
-  })
-
-  describe('<webview>.getWebContents', () => {
-    it('can return the webcontents associated', async () => {
-      const src = 'about:blank'
-      await loadWebView(webview, { src })
-
-      const webviewContents = webview.getWebContents()
-      expect(webviewContents).to.be.an('object')
-      expect(webviewContents.getURL()).to.equal(src)
-    })
-  })
-
-  describe('<webview>.getWebContents filtering', () => {
-    it('can return custom value', async () => {
-      const src = 'about:blank'
-      await loadWebView(webview, { src })
-
-      ipcRenderer.send('handle-next-remote-get-guest-web-contents', 'Hello World!')
-      expect(webview.getWebContents()).to.be.equal('Hello World!')
-    })
-
-    it('throws when no returnValue set', async () => {
-      const src = 'about:blank'
-      await loadWebView(webview, { src })
-
-      ipcRenderer.send('handle-next-remote-get-guest-web-contents')
-      expect(() => webview.getWebContents()).to.throw('Blocked remote.getGuestWebContents()')
+      expect(webview.getWebContentsId()).to.be.a('number')
     })
   })
 
