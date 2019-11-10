@@ -42,6 +42,8 @@ ipcMain.on('message', function (event, ...args) {
   event.sender.send('message', ...args)
 })
 
+ipcMain.handle('get-modules', () => Object.keys(electron))
+
 // Set productName so getUploadedReports() uses the right directory in specs
 if (process.platform !== 'darwin') {
   crashReporter.productName = 'Zombies'
@@ -72,6 +74,7 @@ ipcMain.on('echo', function (event, msg) {
 })
 
 global.setTimeoutPromisified = util.promisify(setTimeout)
+global.returnAPromise = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 100))
 
 global.permissionChecks = {
   allow: () => electron.session.defaultSession.setPermissionCheckHandler(null),

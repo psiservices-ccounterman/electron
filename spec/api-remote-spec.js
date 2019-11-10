@@ -153,10 +153,10 @@ describe('remote module', () => {
   })
 
   describe('remote modules', () => {
-    it('includes browser process modules as properties', () => {
-      expect(remote.app.getPath).to.be.a('function')
-      expect(remote.webContents.getFocusedWebContents).to.be.a('function')
-      expect(remote.clipboard.readText).to.be.a('function')
+    it('includes browser process modules as properties', async () => {
+      const mainModules = await ipcRenderer.invoke('get-modules')
+      const remoteModules = mainModules.filter(name => remote[name])
+      expect(remoteModules).to.be.deep.equal(mainModules)
     })
 
     it('returns toString() of original function via toString()', () => {
@@ -506,6 +506,24 @@ describe('remote module', () => {
       })
       w.once('closed', () => done())
       w.loadURL('about:blank')
+    })
+  })
+
+  describe('with an overriden global Promise constrctor', () => {
+    let original
+
+    before(() => {
+      original = Promise
+    })
+
+    it('using a promise based method  resolves correctly', async () => {
+      expect(await remote.getGlobal('returnAPromise')(123)).to.equal(123)
+      global.Promise = { resolve: () => ({}) }
+      expect(await remote.getGlobal('returnAPromise')(456)).to.equal(456)
+    })
+
+    after(() => {
+      global.Promise = original
     })
   })
 })
