@@ -47,20 +47,20 @@ describe('webContents module', () => {
       w.webContents.once('will-prevent-unload', () => {
         expect.fail('should not have fired')
       })
-      w.loadFile(path.join(fixturesPath, 'api', 'close-beforeunload-undefined.html'))
+      w.loadFile(path.join(__dirname, 'fixtures', 'api', 'close-beforeunload-undefined.html'))
     })
 
-    it('emits if beforeunload returns false', (done) => {
+    it('emits if beforeunload returns false', async () => {
       const w = new BrowserWindow({ show: false })
-      w.webContents.once('will-prevent-unload', () => done())
-      w.loadFile(path.join(fixturesPath, 'api', 'close-beforeunload-false.html'))
+      w.loadFile(path.join(__dirname, 'fixtures', 'api', 'close-beforeunload-false.html'))
+      await emittedOnce(w.webContents, 'will-prevent-unload')
     })
 
-    it('supports calling preventDefault on will-prevent-unload events', (done) => {
+    it('supports calling preventDefault on will-prevent-unload events', async () => {
       const w = new BrowserWindow({ show: false })
       w.webContents.once('will-prevent-unload', event => event.preventDefault())
-      w.once('closed', () => done())
-      w.loadFile(path.join(fixturesPath, 'api', 'close-beforeunload-false.html'))
+      w.loadFile(path.join(__dirname, 'fixtures', 'api', 'close-beforeunload-false.html'))
+      await emittedOnce(w, 'closed')
     })
   })
 
@@ -695,15 +695,19 @@ describe('webContents module', () => {
   describe('focus()', () => {
     describe('when the web contents is hidden', () => {
       afterEach(closeAllWindows)
-      it('does not blur the focused window', (done) => {
+      it('does not blur the focused window', async () => {
         const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true } })
-        ipcMain.once('answer', (event, parentFocused, childFocused) => {
-          expect(parentFocused).to.be.true()
-          expect(childFocused).to.be.false()
-          done()
-        })
         w.show()
-        w.loadFile(path.join(fixturesPath, 'pages', 'focus-web-contents.html'))
+        await w.loadURL('about:blank')
+        w.focus()
+        const child = new BrowserWindow({ show: false })
+        child.loadURL('about:blank')
+        child.webContents.focus()
+        const currentFocused = w.isFocused()
+        const childFocused = child.isFocused()
+        child.close()
+        expect(currentFocused).to.be.true()
+        expect(childFocused).to.be.false()
       })
     })
   })
@@ -1511,6 +1515,116 @@ describe('webContents module', () => {
       const devtoolsClosed = emittedOnce(w.webContents, 'devtools-closed')
       w.webContents.closeDevTools()
       await devtoolsClosed
+    })
+  })
+
+  describe('login event', () => {
+    afterEach(closeAllWindows)
+
+    let server: http.Server
+    let serverUrl: string
+    let serverPort: number
+    let proxyServer: http.Server
+    let proxyServerPort: number
+
+    before((done) => {
+      server = http.createServer((request, response) => {
+        if (request.url === '/no-auth') {
+          return response.end('ok')
+        }
+        if (request.headers.authorization) {
+          response.writeHead(200, { 'Content-type': 'text/plain' })
+          return response.end(request.headers.authorization)
+        }
+        response
+          .writeHead(401, { 'WWW-Authenticate': 'Basic realm="Foo"' })
+          .end('401')
+      }).listen(0, '127.0.0.1', () => {
+        serverPort = (server.address() as AddressInfo).port
+        serverUrl = `http://127.0.0.1:${serverPort}`
+        done()
+      })
+    })
+
+    before((done) => {
+      proxyServer = http.createServer((request, response) => {
+        if (request.headers['proxy-authorization']) {
+          response.writeHead(200, { 'Content-type': 'text/plain' })
+          return response.end(request.headers['proxy-authorization'])
+        }
+        response
+          .writeHead(407, { 'Proxy-Authenticate': 'Basic realm="Foo"' })
+          .end()
+      }).listen(0, '127.0.0.1', () => {
+        proxyServerPort = (proxyServer.address() as AddressInfo).port
+        done()
+      })
+    })
+
+    afterEach(async () => {
+      await session.defaultSession.clearAuthCache({ type: 'password' })
+    })
+
+    after(() => {
+      server.close()
+      proxyServer.close()
+    })
+
+    it('is emitted when navigating', async () => {
+      const [user, pass] = ['user', 'pass']
+      const w = new BrowserWindow({ show: false })
+      let eventRequest: any
+      let eventAuthInfo: any
+      w.webContents.on('login', (event, request, authInfo, cb) => {
+        eventRequest = request
+        eventAuthInfo = authInfo
+        event.preventDefault()
+        cb(user, pass)
+      })
+      await w.loadURL(serverUrl)
+      const body = await w.webContents.executeJavaScript(`document.documentElement.textContent`)
+      expect(body).to.equal(`Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`)
+      expect(eventRequest.url).to.equal(serverUrl + '/')
+      expect(eventAuthInfo.isProxy).to.be.false()
+      expect(eventAuthInfo.scheme).to.equal('basic')
+      expect(eventAuthInfo.host).to.equal('127.0.0.1')
+      expect(eventAuthInfo.port).to.equal(serverPort)
+      expect(eventAuthInfo.realm).to.equal('Foo')
+    })
+
+    it('is emitted when a proxy requests authorization', async () => {
+      const customSession = session.fromPartition(`${Math.random()}`)
+      await customSession.setProxy({ proxyRules: `127.0.0.1:${proxyServerPort}`, proxyBypassRules: '<-loopback>' })
+      const [user, pass] = ['user', 'pass']
+      const w = new BrowserWindow({ show: false, webPreferences: { session: customSession } })
+      let eventRequest: any
+      let eventAuthInfo: any
+      w.webContents.on('login', (event, request, authInfo, cb) => {
+        eventRequest = request
+        eventAuthInfo = authInfo
+        event.preventDefault()
+        cb(user, pass)
+      })
+      await w.loadURL(`${serverUrl}/no-auth`)
+      const body = await w.webContents.executeJavaScript(`document.documentElement.textContent`)
+      expect(body).to.equal(`Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`)
+      expect(eventRequest.url).to.equal(`${serverUrl}/no-auth`)
+      expect(eventAuthInfo.isProxy).to.be.true()
+      expect(eventAuthInfo.scheme).to.equal('basic')
+      expect(eventAuthInfo.host).to.equal('127.0.0.1')
+      expect(eventAuthInfo.port).to.equal(proxyServerPort)
+      expect(eventAuthInfo.realm).to.equal('Foo')
+    })
+
+    it('cancels authentication when callback is called with no arguments', async () => {
+      const w = new BrowserWindow({ show: false })
+      w.webContents.on('login', (event, request, authInfo, cb) => {
+        event.preventDefault()
+        cb()
+      })
+      await w.loadURL(serverUrl)
+      const body = await w.webContents.executeJavaScript(`document.documentElement.textContent`)
+      expect(body).to.equal('401')
     })
   })
 })
