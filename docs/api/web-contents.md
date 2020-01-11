@@ -1236,7 +1236,7 @@ Captures a snapshot of the page within `rect`. Omitting `rect` will capture the 
 
 Get the system printer list.
 
-Returns [`PrinterInfo[]`](structures/printer-info.md).
+Returns [`PrinterInfo[]`](structures/printer-info.md)
 
 #### `contents.print([options], [callback])`
 
@@ -1323,12 +1323,13 @@ win.loadURL('http://github.com')
 
 win.webContents.on('did-finish-load', () => {
   // Use default printing options
-  win.webContents.printToPDF({}, (error, data) => {
-    if (error) throw error
+  win.webContents.printToPDF({}).then(data => {
     fs.writeFile('/tmp/print.pdf', data, (error) => {
       if (error) throw error
       console.log('Write PDF successfully.')
     })
+  }).catch(error => {
+    console.log(error)
   })
 })
 ```

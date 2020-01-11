@@ -591,7 +591,8 @@ describe('net module', () => {
         customSession.cookies.set({
           url: `${serverUrl}`,
           name: 'test',
-          value: '11111'
+          value: '11111',
+          expirationDate: 0
         }).then(() => { // resolved
           const urlRequest = net.request({
             method: 'GET',
@@ -1203,6 +1204,17 @@ describe('net module', () => {
         })
         nodeRequest.end()
       })
+    })
+
+    it('should report upload progress', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.end()
+      })
+      const netRequest = net.request({ url: serverUrl, method: 'POST' })
+      expect(netRequest.getUploadProgress()).to.deep.equal({ active: false })
+      netRequest.end(Buffer.from('hello'))
+      const [position, total] = await emittedOnce(netRequest, 'upload-progress')
+      expect(netRequest.getUploadProgress()).to.deep.equal({ active: true, started: true, current: position, total })
     })
 
     it('should emit error event on server socket destroy', async () => {
