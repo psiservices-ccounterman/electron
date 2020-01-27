@@ -599,13 +599,11 @@ describe('BrowserWindow module', () => {
     })
 
     describe('BrowserWindow.getFocusedWindow()', () => {
-      it('returns the opener window when dev tools window is focused', (done) => {
+      it('returns the opener window when dev tools window is focused', async () => {
         w.show()
-        w.webContents.once('devtools-focused', () => {
-          expect(BrowserWindow.getFocusedWindow()).to.equal(w)
-          done()
-        })
         w.webContents.openDevTools({ mode: 'undocked' })
+        await emittedOnce(w.webContents, 'devtools-focused')
+        expect(BrowserWindow.getFocusedWindow()).to.equal(w)
       })
     })
 
@@ -651,6 +649,16 @@ describe('BrowserWindow module', () => {
       })
     })
 
+    describe('BrowserWindow.setFocusable()', () => {
+      it('can set unfocusable window to focusable', async () => {
+        const w2 = new BrowserWindow({ focusable: false })
+        const w2Focused = emittedOnce(w2, 'focus')
+        w2.setFocusable(true)
+        w2.focus()
+        await w2Focused
+        await closeWindow(w2, { assertNotWindows: false })
+      })
+    })
   })
 
   describe('sizing', () => {
@@ -2785,6 +2793,13 @@ describe('BrowserWindow module', () => {
       w.minimize()
       w.restore()
       expectBoundsEqual(w.getSize(), initialSize)
+    })
+
+    it('does not crash when restoring hidden minimized window', () => {
+      const w = new BrowserWindow({})
+      w.minimize()
+      w.hide()
+      w.show()
     })
   })
 
