@@ -12,7 +12,7 @@ index 186de613d8b833e0ef357145b8dd5e6247157c79..61cad9e4d603943535ed978c39e258b9
            last_committed_origin_, params->window_container_type,
            params->target_url, params->referrer.To<Referrer>(),
            params->frame_name, params->disposition, *params->features,
-+          params->additional_features, params->body,
++          params->raw_features, params->body,
            effective_transient_activation_state, params->opener_suppressed,
            &no_javascript_access);
  
