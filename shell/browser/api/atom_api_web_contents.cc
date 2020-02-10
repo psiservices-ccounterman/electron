@@ -627,8 +627,8 @@ void WebContents::OnCreateWindow(
     WindowOpenDisposition disposition,
     const std::string& features,
     const scoped_refptr<network::ResourceRequestBody>& body) {
-  Emit("-new-window", target_url, frame_name, disposition, features, body,
-         referrer);
+  Emit("-new-window", target_url, frame_name, disposition, features, referrer,
+         body);
 }
 
 void WebContents::WebContentsCreatedWithFullParams(
