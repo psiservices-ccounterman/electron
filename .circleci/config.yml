@@ -136,22 +136,31 @@ env-enable-sccache: &env-enable-sccache
 env-send-slack-notifications: &env-send-slack-notifications
   NOTIFY_SLACK: true
 
+env-global: &env-global
+  ELECTRON_OUT_DIR: Default
+
 env-linux-medium: &env-linux-medium
+  <<: *env-global
   NUMBER_OF_NINJA_PROCESSES: 3
 
 env-linux-2xlarge: &env-linux-2xlarge
+  <<: *env-global
   NUMBER_OF_NINJA_PROCESSES: 34
 
 env-linux-2xlarge-release: &env-linux-2xlarge-release
+  <<: *env-global
   NUMBER_OF_NINJA_PROCESSES: 16
 
 env-machine-mac: &env-machine-mac
+  <<: *env-global
   NUMBER_OF_NINJA_PROCESSES: 6
 
 env-mac-large: &env-mac-large
+  <<: *env-global
   NUMBER_OF_NINJA_PROCESSES: 18
 
 env-mac-large-release: &env-mac-large-release
+  <<: *env-global
   NUMBER_OF_NINJA_PROCESSES: 8
 
 env-ninja-status: &env-ninja-status
@@ -546,6 +555,7 @@ step-mksnapshot-build: &step-mksnapshot-build
     name: mksnapshot build
     command: |
       cd src
+      ninja -C out/Default electron:electron_mksnapshot -j $NUMBER_OF_NINJA_PROCESSES
       if [ "`uname`" != "Darwin" ]; then
         if [ "$TARGET_ARCH" == "arm" ]; then
           electron/script/strip-binaries.py --file $PWD/out/Default/clang_x86_v8_arm/mksnapshot
@@ -553,6 +563,7 @@ step-mksnapshot-build: &step-mksnapshot-build
           electron/script/strip-binaries.py --file $PWD/out/Default/clang_x64_v8_arm64/mksnapshot
         else
           electron/script/strip-binaries.py --file $PWD/out/Default/mksnapshot
+          electron/script/strip-binaries.py --file $PWD/out/Default/v8_context_snapshot_generator
         fi
       fi
       if [ "$SKIP_DIST_ZIP" != "1" ]; then
@@ -754,7 +765,7 @@ step-check-for-doc-only-change: &step-check-for-doc-only-change
     command: |
       cd src/electron
       node script/yarn install --frozen-lockfile
-      if node script/doc-only-change.js --prNumber=$CIRCLE_PR_NUMBER --prURL=$CIRCLE_PULL_REQUEST; then
+      if node script/doc-only-change.js --prNumber=$CIRCLE_PR_NUMBER --prURL=$CIRCLE_PULL_REQUEST --prBranch=$CIRCLE_BRANCH; then
         #PR is doc only change; save file with value true to indicate doc only change
         echo "true" > .skip-ci-build
       else
@@ -790,7 +801,7 @@ step-ts-compile: &step-ts-compile
     command: |
       cd src
       ninja -C out/Default electron:default_app_js -j $NUMBER_OF_NINJA_PROCESSES
-      ninja -C out/Default electron:atom_js2c -j $NUMBER_OF_NINJA_PROCESSES
+      ninja -C out/Default electron:electron_js2c -j $NUMBER_OF_NINJA_PROCESSES
 
 # Lists of steps.
 steps-lint: &steps-lint
@@ -1233,7 +1244,6 @@ steps-tests: &steps-tests
           ELECTRON_DISABLE_SECURITY_WARNINGS: 1
         command: |
           cd src
-          export ELECTRON_OUT_DIR=Default
           (cd electron && node script/yarn test -- --ci --enable-logging)
     - run:
         name: Check test results existence
@@ -1267,7 +1277,6 @@ steps-test-nan: &steps-test-nan
         name: Run Nan Tests
         command: |
           cd src
-          export ELECTRON_OUT_DIR=Default
           node electron/script/nan-spec-runner.js
 
 steps-test-node: &steps-test-node
@@ -1283,7 +1292,6 @@ steps-test-node: &steps-test-node
         name: Run Node Tests
         command: |
           cd src
-          export ELECTRON_OUT_DIR=Default
           node electron/script/node-spec-runner.js junit
     - store_test_results:
         path: src/junit
