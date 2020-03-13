@@ -24,17 +24,6 @@ git merge upstream/master
 git push
 ```
 
-For other branches, e.g. "7-1-x":
-
-```bash
-git remote remove upstream
-git checkout 7-1-x
-git remote add upstream https://github.com/electron/electron.git
-git fetch upstream
-git merge upstream/7-1-x
-git push
-```
-
 For "8-x-y":
 
 ```bash
@@ -42,7 +31,7 @@ git remote remove upstream
 git checkout 8-x-y
 git remote add upstream https://github.com/electron/electron.git
 git fetch upstream
-git merge upstream/8-x-y
+git merge v8.1.1
 git push
 ```
 
