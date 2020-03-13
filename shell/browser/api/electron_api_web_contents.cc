@@ -1737,8 +1737,24 @@ void WebContents::OnGetDefaultPrinter(
     base::string16 device_name,
     bool silent,
     base::string16 default_printer) {
+  // The content::WebContents might be already deleted at this point, and the
+  // PrintViewManagerBasic class does not do null check.
+  if (!web_contents()) {
+    if (print_callback)
+      std::move(print_callback).Run(false, "failed");
+    return;
+  }
+
   base::string16 printer_name =
       device_name.empty() ? default_printer : device_name;
+
+  // If there are no valid printers available on the network, we bail.
+  if (printer_name.empty() || !IsDeviceNameValid(printer_name)) {
+    if (print_callback)
+      std::move(print_callback).Run(false, "no valid printers available");
+    return;
+  }
+
   print_settings.SetStringKey(printing::kSettingDeviceName, printer_name);
 
   auto* print_view_manager =

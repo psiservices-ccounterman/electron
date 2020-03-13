@@ -195,7 +195,7 @@ describe('BrowserWindow module', () => {
       }).to.throw('Object has been destroyed')
     })
     it('should not crash when destroying windows with pending events', () => {
-      const focusListener = () => {}
+      const focusListener = () => { }
       app.on('browser-window-focus', focusListener)
       const windowCount = 3
       const windowOptions = {
@@ -266,7 +266,7 @@ describe('BrowserWindow module', () => {
               fs.readFile(filePath, (err, data) => {
                 if (err) return
                 if (parsedData.username === 'test' &&
-                    parsedData.file === data.toString()) {
+                  parsedData.file === data.toString()) {
                   res.end()
                 }
               })
@@ -1319,6 +1319,31 @@ describe('BrowserWindow module', () => {
     })
   })
 
+  ifdescribe(process.platform === 'darwin')('BrowserWindow.getTrafficLightPosition(pos)', () => {
+    afterEach(closeAllWindows)
+
+    it('gets the set traffic light position property', () => {
+      const pos = { x: 10, y: 10 }
+      const w = new BrowserWindow({ show: false, titleBarStyle: 'hidden', trafficLightPosition: pos })
+      const currentPosition = w.getTrafficLightPosition()
+
+      expect(currentPosition).to.deep.equal(pos)
+    })
+  })
+
+  ifdescribe(process.platform === 'darwin')('BrowserWindow.setTrafficLightPosition(pos)', () => {
+    afterEach(closeAllWindows)
+
+    it('can set the traffic light position property', () => {
+      const pos = { x: 10, y: 10 }
+      const w = new BrowserWindow({ show: false, titleBarStyle: 'hidden', trafficLightPosition: pos })
+      w.setTrafficLightPosition(pos)
+      const currentPosition = w.getTrafficLightPosition()
+
+      expect(currentPosition).to.deep.equal(pos)
+    })
+  })
+
   ifdescribe(process.platform === 'win32')('BrowserWindow.setAppDetails(options)', () => {
     afterEach(closeAllWindows)
 
@@ -1584,7 +1609,7 @@ describe('BrowserWindow module', () => {
     afterEach(closeAllWindows)
 
     describe('"preload" option', () => {
-      const doesNotLeakSpec = (name: string, webPrefs: {nodeIntegration: boolean, sandbox: boolean, contextIsolation: boolean}) => {
+      const doesNotLeakSpec = (name: string, webPrefs: { nodeIntegration: boolean, sandbox: boolean, contextIsolation: boolean }) => {
         it(name, async () => {
           const w = new BrowserWindow({
             webPreferences: {
@@ -1830,7 +1855,7 @@ describe('BrowserWindow module', () => {
     })
 
     describe('"sandbox" option', () => {
-      function waitForEvents<T>(emitter: {once: Function}, events: string[], callback: () => void) {
+      function waitForEvents<T> (emitter: { once: Function }, events: string[], callback: () => void) {
         let count = events.length
         for (const event of events) {
           emitter.once(event, () => {
@@ -2808,7 +2833,7 @@ describe('BrowserWindow module', () => {
             return
           }
           if (rect.height === contentHeight && rect.width === contentWidth &&
-              !gotInitialFullSizeFrame) {
+            !gotInitialFullSizeFrame) {
             // The initial frame is full-size, but we're looking for a call
             // with just the dirty-rect. The next frame should be a smaller
             // rect.
@@ -3050,15 +3075,53 @@ describe('BrowserWindow module', () => {
     })
 
     // The isEnabled API is not reliable on macOS.
-    ifdescribe(process.platform !== 'darwin')('modal option', () => {
-      it('disables parent window', () => {
+    describe('modal option', () => {
+      it('does not crash', async () => {
+        const parentWindow = new BrowserWindow()
+
+        const createTwo = async () => {
+          const two = new BrowserWindow({
+            width: 300,
+            height: 200,
+            parent: parentWindow,
+            modal: true,
+            show: false
+          })
+
+          const twoShown = emittedOnce(two, 'show')
+          two.show()
+          await twoShown
+          setTimeout(() => two.close(), 500)
+
+          await emittedOnce(two, 'closed')
+        }
+
+        const one = new BrowserWindow({
+          width: 600,
+          height: 400,
+          parent: parentWindow,
+          modal: true,
+          show: false
+        })
+
+        const oneShown = emittedOnce(one, 'show')
+        one.show()
+        await oneShown
+        setTimeout(() => one.destroy(), 500)
+
+        await emittedOnce(one, 'closed')
+        await createTwo()
+      })
+
+      ifit(process.platform !== 'darwin')('disables parent window', () => {
         const w = new BrowserWindow({show: false})
         const c = new BrowserWindow({ show: false, parent: w, modal: true })
         expect(w.isEnabled()).to.be.true('w.isEnabled')
         c.show()
         expect(w.isEnabled()).to.be.false('w.isEnabled')
       })
-      it('re-enables an enabled parent window when closed', (done) => {
+
+      ifit(process.platform !== 'darwin')('re-enables an enabled parent window when closed', (done) => {
         const w = new BrowserWindow({show: false})
         const c = new BrowserWindow({ show: false, parent: w, modal: true })
         c.once('closed', () => {
@@ -3068,7 +3131,8 @@ describe('BrowserWindow module', () => {
         c.show()
         c.close()
       })
-      it('does not re-enable a disabled parent window when closed', (done) => {
+
+      ifit(process.platform !== 'darwin')('does not re-enable a disabled parent window when closed', (done) => {
         const w = new BrowserWindow({show: false})
         const c = new BrowserWindow({ show: false, parent: w, modal: true })
         c.once('closed', () => {
@@ -3079,7 +3143,8 @@ describe('BrowserWindow module', () => {
         c.show()
         c.close()
       })
-      it('disables parent window recursively', () => {
+
+      ifit(process.platform !== 'darwin')('disables parent window recursively', () => {
         const w = new BrowserWindow({show: false})
         const c = new BrowserWindow({ show: false, parent: w, modal: true })
         const c2 = new BrowserWindow({ show: false, parent: w, modal: true })
