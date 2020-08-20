@@ -18,7 +18,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/desktop_media_id.h"
-#include "shell/browser/api/atom_api_web_contents.h"
+#include "shell/browser/api/electron_api_web_contents.h"
 #include "shell/browser/native_browser_view_views.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
 #include "shell/browser/ui/inspectable_web_contents_view.h"
@@ -26,7 +26,7 @@
 #include "shell/browser/web_contents_preferences.h"
 #include "shell/browser/web_view_manager.h"
 #include "shell/browser/window_list.h"
-#include "shell/common/atom_constants.h"
+#include "shell/common/electron_constants.h"
 #include "shell/common/gin_converters/image_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/options_switches.h"
@@ -59,7 +59,7 @@
 #include "ui/views/window/native_frame_view.h"
 #elif defined(OS_WIN)
 #include "shell/browser/ui/views/win_frame_view.h"
-#include "shell/browser/ui/win/atom_desktop_native_widget_aura.h"
+#include "shell/browser/ui/win/electron_desktop_native_widget_aura.h"
 #include "skia/ext/skia_utils_win.h"
 #include "ui/base/win/shell.h"
 #include "ui/display/screen.h"
@@ -174,7 +174,7 @@ NativeWindowViews::NativeWindowViews(const gin_helper::Dictionary& options,
   params.remove_standard_frame = !has_frame();
 
   if (transparent())
-    params.opacity = views::Widget::InitParams::TRANSLUCENT_WINDOW;
+    params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
 
   // The given window is most likely not rectangular since it uses
   // transparency and has no standard frame, don't show a shadow for it.
@@ -189,7 +189,7 @@ NativeWindowViews::NativeWindowViews(const gin_helper::Dictionary& options,
   if (parent)
     params.parent = parent->GetNativeWindow();
 
-  params.native_widget = new AtomDesktopNativeWidgetAura(this);
+  params.native_widget = new ElectronDesktopNativeWidgetAura(this);
 #elif defined(USE_X11)
   std::string name = Browser::Get()->GetName();
   // Set WM_WINDOW_ROLE.
@@ -903,6 +903,10 @@ bool NativeWindowViews::IsKiosk() {
   return IsFullscreen();
 }
 
+SkColor NativeWindowViews::GetBackgroundColor() {
+  return root_view_->background()->get_color();
+}
+
 void NativeWindowViews::SetBackgroundColor(SkColor background_color) {
   // web views' background color.
   root_view_->SetBackground(views::CreateSolidBackground(background_color));
@@ -988,6 +992,7 @@ void NativeWindowViews::SetContentProtection(bool enable) {
 }
 
 void NativeWindowViews::SetFocusable(bool focusable) {
+  widget()->widget_delegate()->SetCanActivate(focusable);
 #if defined(OS_WIN)
   LONG ex_style = ::GetWindowLong(GetAcceleratedWidget(), GWL_EXSTYLE);
   if (focusable)
@@ -1000,22 +1005,24 @@ void NativeWindowViews::SetFocusable(bool focusable) {
 #endif
 }
 
-void NativeWindowViews::SetMenu(AtomMenuModel* menu_model) {
+void NativeWindowViews::SetMenu(ElectronMenuModel* menu_model) {
 #if defined(USE_X11)
-  if (menu_model == nullptr) {
+  // Remove global menu bar.
+  if (global_menu_bar_ && menu_model == nullptr) {
     global_menu_bar_.reset();
     root_view_->UnregisterAcceleratorsWithFocusManager();
     return;
   }
 
-  if (!global_menu_bar_ && ShouldUseGlobalMenuBar())
-    global_menu_bar_ = std::make_unique<GlobalMenuBarX11>(this);
-
   // Use global application menu bar when possible.
-  if (global_menu_bar_ && global_menu_bar_->IsServerStarted()) {
-    root_view_->RegisterAcceleratorsWithFocusManager(menu_model);
-    global_menu_bar_->SetMenu(menu_model);
-    return;
+  if (ShouldUseGlobalMenuBar()) {
+    if (!global_menu_bar_)
+      global_menu_bar_ = std::make_unique<GlobalMenuBarX11>(this);
+    if (global_menu_bar_->IsServerStarted()) {
+      root_view_->RegisterAcceleratorsWithFocusManager(menu_model);
+      global_menu_bar_->SetMenu(menu_model);
+      return;
+    }
   }
 #endif
 
@@ -1150,8 +1157,7 @@ bool NativeWindowViews::IsMenuBarVisible() {
   return root_view_->IsMenuBarVisible();
 }
 
-void NativeWindowViews::SetVisibleOnAllWorkspaces(bool visible,
-                                                  bool visibleOnFullScreen) {
+void NativeWindowViews::SetVisibleOnAllWorkspaces(bool visible) {
   widget()->SetVisibleOnAllWorkspaces(visible);
 }
 
@@ -1282,7 +1288,7 @@ void NativeWindowViews::SetIcon(HICON window_icon, HICON app_icon) {
 void NativeWindowViews::SetIcon(const gfx::ImageSkia& icon) {
   auto* tree_host = views::DesktopWindowTreeHostLinux::GetHostForWidget(
       GetAcceleratedWidget());
-  tree_host->SetWindowIcons(icon, icon);
+  tree_host->SetWindowIcons(icon, {});
 }
 #endif
 

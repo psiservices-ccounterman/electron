@@ -6,14 +6,15 @@ gclient_gn_args = [
   'checkout_libaom',
   'checkout_nacl',
   'checkout_oculus_sdk',
-  'checkout_openxr'
+  'checkout_openxr',
+  'checkout_google_benchmark'
 ]
 
 vars = {
   'chromium_version':
-    'dc9525d251bf30828899e4cd7161f6dc6507023f',
+    '83.0.4103.122',
   'node_version':
-    'v12.13.0',
+    'v12.14.1',
   'nan_version':
     '2ee313aaca52e2b478965ac50eb5082520380d1b',
 
@@ -69,6 +70,8 @@ vars = {
     False,
   'checkout_android_native_support':
     False,
+  'checkout_google_benchmark':
+    False,
 }
 
 deps = {
@@ -114,7 +117,7 @@ hooks = [
     'pattern': 'src/electron/script/update-external-binaries.py',
     'condition': 'download_external_binaries',
     'action': [
-      'python',
+      'python3',
       'src/electron/script/update-external-binaries.py',
     ],
   },
@@ -152,3 +155,5 @@ hooks = [
 recursedeps = [
   'src',
 ]
+
+# Touch DEPS again to bust cache

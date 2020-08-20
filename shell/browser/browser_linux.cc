@@ -16,8 +16,8 @@
 #include "shell/common/application_info.h"
 
 #if defined(USE_X11)
-#include "chrome/browser/ui/libgtkui/gtk_util.h"
 #include "shell/browser/linux/unity_service.h"
+#include "ui/gtk/gtk_util.h"
 #endif
 
 namespace electron {
@@ -84,7 +84,7 @@ bool SetDefaultWebClient(const std::string& protocol) {
   return ran_ok && exit_code == EXIT_SUCCESS;
 }
 
-void Browser::Focus() {
+void Browser::Focus(gin_helper::Arguments* args) {
   // Focus on the first visible window.
   for (auto* const window : WindowList::GetWindows()) {
     if (window->IsVisible()) {

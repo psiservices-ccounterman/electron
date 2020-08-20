@@ -13,7 +13,7 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
-#include "shell/browser/api/atom_api_web_contents.h"
+#include "shell/browser/api/electron_api_web_contents.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 
 namespace electron {
@@ -44,7 +44,7 @@ void WebViewGuestDelegate::AttachToIframe(
   // frame |embedder_frame| hosts the inner WebContents.
   embedder_web_contents_->AttachInnerWebContents(
       base::WrapUnique<content::WebContents>(guest_web_contents),
-      embedder_frame);
+      embedder_frame, false);
 
   ResetZoomController();
 
@@ -55,6 +55,10 @@ void WebViewGuestDelegate::AttachToIframe(
   zoom_controller->SetEmbedderZoomController(embedder_zoom_controller_);
 
   api_web_contents_->Emit("did-attach");
+}
+
+void WebViewGuestDelegate::WillDestroy() {
+  ResetZoomController();
 }
 
 void WebViewGuestDelegate::DidDetach() {
@@ -112,8 +116,7 @@ content::WebContents* WebViewGuestDelegate::CreateNewGuestWindow(
       guest_contents->GetRenderViewHost()->GetWidget();
   auto* guest_contents_impl =
       static_cast<content::WebContentsImpl*>(guest_contents.release());
-  guest_contents_impl->GetView()->CreateViewForWidget(render_widget_host,
-                                                      false);
+  guest_contents_impl->GetView()->CreateViewForWidget(render_widget_host);
 
   return guest_contents_impl;
 }

@@ -10,7 +10,7 @@ This patch makes three changes to Accelerator::GetShortcutText to improve shortc
 3. Ctrl-Shift-= should show as Ctrl-+
 
 diff --git a/ui/base/accelerators/accelerator.cc b/ui/base/accelerators/accelerator.cc
-index a3e869a74c33b161215ab4eb6f6adc6a71c9fff5..83315ce63e7d39d3e47a8bb61ade728e20ac11c8 100644
+index 291bdeec97bec510f7c86a8e8bccab22b7d5d8ac..926a705c23bd5adbfc0fe178c44617086b946a80 100644
 --- a/ui/base/accelerators/accelerator.cc
 +++ b/ui/base/accelerators/accelerator.cc
 @@ -11,6 +11,7 @@
@@ -29,9 +29,9 @@ index a3e869a74c33b161215ab4eb6f6adc6a71c9fff5..83315ce63e7d39d3e47a8bb61ade728e
  #include "ui/events/keycodes/keyboard_code_conversion.h"
 -#endif
  
- namespace ui {
- 
-@@ -150,7 +149,15 @@ base::string16 Accelerator::GetShortcutText() const {
+ #if defined(OS_CHROMEOS)
+ #include "ui/base/ui_base_features.h"
+@@ -220,7 +219,15 @@ base::string16 Accelerator::GetShortcutText() const {
    shortcut = KeyCodeToName();
  #endif
  
@@ -47,7 +47,7 @@ index a3e869a74c33b161215ab4eb6f6adc6a71c9fff5..83315ce63e7d39d3e47a8bb61ade728e
  #if defined(OS_WIN)
      // Our fallback is to try translate the key code to a regular character
      // unless it is one of digits (VK_0 to VK_9). Some keyboard
-@@ -159,21 +166,14 @@ base::string16 Accelerator::GetShortcutText() const {
+@@ -229,21 +236,14 @@ base::string16 Accelerator::GetShortcutText() const {
      // accent' for '0'). For display in the menu (e.g. Ctrl-0 for the
      // default zoom level), we leave VK_[0-9] alone without translation.
      wchar_t key;
@@ -74,8 +74,8 @@ index a3e869a74c33b161215ab4eb6f6adc6a71c9fff5..83315ce63e7d39d3e47a8bb61ade728e
 +          base::StringPrintf("F%d", key_code_ - VKEY_F1 + 1));
    }
  
-   // Checking whether the character used for the accelerator is alphanumeric.
-@@ -356,7 +356,7 @@ base::string16 Accelerator::ApplyLongFormModifiers(
+ #if defined(OS_MACOSX)
+@@ -426,7 +426,7 @@ base::string16 Accelerator::ApplyLongFormModifiers(
    // more information.
    if (IsCtrlDown())
      shortcut = ApplyModifierToAcceleratorString(shortcut, IDS_APP_CTRL_KEY);

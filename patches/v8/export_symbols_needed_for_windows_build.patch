@@ -6,7 +6,7 @@ Subject: Export symbols needed for Windows build
 These symbols are required to build v8 with BUILD_V8_SHARED on Windows.
 
 diff --git a/src/objects/objects.h b/src/objects/objects.h
-index c98b60d70fa889dc393ca63aba4d116fa8fb2ccd..9db7958f5ef23d5d781505d3ea724149427370bf 100644
+index ef437446fd6378e9749ce1b0d3c428f6aaac559c..3f2063d15bbdc587ea29bec4c889d1e09d7688bb 100644
 --- a/src/objects/objects.h
 +++ b/src/objects/objects.h
 @@ -811,7 +811,7 @@ enum class KeyCollectionMode {
@@ -19,7 +19,7 @@ index c98b60d70fa889dc393ca63aba4d116fa8fb2ccd..9db7958f5ef23d5d781505d3ea724149
    explicit inline Relocatable(Isolate* isolate);
    inline virtual ~Relocatable();
 diff --git a/src/objects/ordered-hash-table.h b/src/objects/ordered-hash-table.h
-index 21decaeba72246ef95be0f031c605c7f840715b1..d661a11cf48f51eb6080cc086a7a26b4bd497cae 100644
+index b587960432caf56601920678686480f2f1dd5abc..3c08eb044115db534eb880b867e0d03802dc9615 100644
 --- a/src/objects/ordered-hash-table.h
 +++ b/src/objects/ordered-hash-table.h
 @@ -60,7 +60,7 @@ namespace internal {

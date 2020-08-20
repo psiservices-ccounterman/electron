@@ -9,7 +9,7 @@
 
 #include "base/macros.h"
 #include "gin/public/isolate_holder.h"
-#include "uv.h"  // NOLINT(build/include)
+#include "uv.h"  // NOLINT(build/include_directory)
 
 namespace node {
 class Environment;
@@ -57,6 +57,8 @@ class NodeEnvironment {
  public:
   explicit NodeEnvironment(node::Environment* env);
   ~NodeEnvironment();
+
+  node::Environment* env() { return env_; }
 
  private:
   node::Environment* env_;

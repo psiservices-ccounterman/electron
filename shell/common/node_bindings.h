@@ -9,7 +9,7 @@
 #include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/single_thread_task_runner.h"
-#include "uv.h"  // NOLINT(build/include)
+#include "uv.h"  // NOLINT(build/include_directory)
 #include "v8/include/v8.h"
 
 namespace base {
@@ -43,8 +43,7 @@ class NodeBindings {
 
   // Create the environment and load node.js.
   node::Environment* CreateEnvironment(v8::Handle<v8::Context> context,
-                                       node::MultiIsolatePlatform* platform,
-                                       bool bootstrap_env);
+                                       node::MultiIsolatePlatform* platform);
 
   // Load node.js in the environment.
   void LoadEnvironment(node::Environment* env);
@@ -62,6 +61,8 @@ class NodeBindings {
   node::Environment* uv_env() const { return uv_env_; }
 
   uv_loop_t* uv_loop() const { return uv_loop_; }
+
+  bool in_worker_loop() const { return uv_loop_ == &worker_loop_; }
 
  protected:
   explicit NodeBindings(BrowserEnvironment browser_env);

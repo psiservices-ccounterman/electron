@@ -23,11 +23,12 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/common/content_paths.h"
 #include "electron/buildflags/buildflags.h"
-#include "shell/common/atom_command_line.h"
+#include "shell/common/electron_command_line.h"
 #include "shell/common/gin_converters/file_path_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/gin_helper/event_emitter_caller.h"
 #include "shell/common/gin_helper/locker.h"
+#include "shell/common/gin_helper/microtasks_scope.h"
 #include "shell/common/mac/main_application_bundle.h"
 #include "shell/common/node_includes.h"
 
@@ -36,6 +37,7 @@
   V(atom_browser_auto_updater)       \
   V(atom_browser_browser_view)       \
   V(atom_browser_content_tracing)    \
+  V(atom_browser_crash_reporter)     \
   V(atom_browser_debugger)           \
   V(atom_browser_dialog)             \
   V(atom_browser_download_item)      \
@@ -43,6 +45,7 @@
   V(atom_browser_global_shortcut)    \
   V(atom_browser_in_app_purchase)    \
   V(atom_browser_menu)               \
+  V(atom_browser_message_port)       \
   V(atom_browser_net)                \
   V(atom_browser_power_monitor)      \
   V(atom_browser_power_save_blocker) \
@@ -59,7 +62,6 @@
   V(atom_common_asar)                \
   V(atom_common_clipboard)           \
   V(atom_common_command_line)        \
-  V(atom_common_crash_reporter)      \
   V(atom_common_features)            \
   V(atom_common_native_image)        \
   V(atom_common_native_theme)        \
@@ -68,6 +70,7 @@
   V(atom_common_shell)               \
   V(atom_common_v8_util)             \
   V(atom_renderer_context_bridge)    \
+  V(atom_renderer_crash_reporter)    \
   V(atom_renderer_ipc)               \
   V(atom_renderer_web_frame)
 
@@ -100,25 +103,25 @@ ELECTRON_DESKTOP_CAPTURER_MODULE(V)
 namespace {
 
 void stop_and_close_uv_loop(uv_loop_t* loop) {
-  // Close any active handles
   uv_stop(loop);
-  uv_walk(
-      loop,
-      [](uv_handle_t* handle, void*) {
-        if (!uv_is_closing(handle)) {
-          uv_close(handle, nullptr);
-        }
-      },
-      nullptr);
+  int error = uv_loop_close(loop);
 
-  // Run the loop to let it finish all the closing handles
-  // NB: after uv_stop(), uv_run(UV_RUN_DEFAULT) returns 0 when that's done
-  for (;;)
-    if (!uv_run(loop, UV_RUN_DEFAULT))
-      break;
+  while (error) {
+    uv_run(loop, UV_RUN_DEFAULT);
+    uv_stop(loop);
+    uv_walk(
+        loop,
+        [](uv_handle_t* handle, void*) {
+          if (!uv_is_closing(handle)) {
+            uv_close(handle, nullptr);
+          }
+        },
+        nullptr);
+    uv_run(loop, UV_RUN_DEFAULT);
+    error = uv_loop_close(loop);
+  }
 
-  DCHECK(!uv_loop_alive(loop));
-  uv_loop_close(loop);
+  DCHECK_EQ(error, 0);
 }
 
 bool g_is_initialized = false;
@@ -144,7 +147,8 @@ void SetNodeOptions(base::Environment* env) {
       "--force-fips", "--enable-fips"};
 
   // Subset of options allowed in packaged apps
-  const std::set<std::string> allowed_in_packaged = {"--max-http-header-size"};
+  const std::set<std::string> allowed_in_packaged = {"--max-http-header-size",
+                                                     "--http-parser"};
 
   if (env->HasVar("NODE_OPTIONS")) {
     std::string options;
@@ -224,6 +228,7 @@ NodeBindings::~NodeBindings() {
   // Quit the embed thread.
   embed_closed_ = true;
   uv_sem_post(&embed_sem_);
+
   WakeupEmbedThread();
 
   // Wait for everything to be done.
@@ -234,7 +239,7 @@ NodeBindings::~NodeBindings() {
   uv_close(reinterpret_cast<uv_handle_t*>(&dummy_uv_handle_), nullptr);
 
   // Clean up worker loop
-  if (uv_loop_ == &worker_loop_)
+  if (in_worker_loop())
     stop_and_close_uv_loop(uv_loop_);
 }
 
@@ -263,7 +268,7 @@ void NodeBindings::Initialize() {
 #if defined(OS_LINUX)
   // Get real command line in renderer process forked by zygote.
   if (browser_env_ != BrowserEnvironment::BROWSER)
-    AtomCommandLine::InitializeFromCommandLine();
+    ElectronCommandLine::InitializeFromCommandLine();
 #endif
 
   // Explicitly register electron's builtin modules.
@@ -298,15 +303,14 @@ void NodeBindings::Initialize() {
 
 node::Environment* NodeBindings::CreateEnvironment(
     v8::Handle<v8::Context> context,
-    node::MultiIsolatePlatform* platform,
-    bool bootstrap_env) {
+    node::MultiIsolatePlatform* platform) {
 #if defined(OS_WIN)
-  auto& atom_args = AtomCommandLine::argv();
+  auto& atom_args = ElectronCommandLine::argv();
   std::vector<std::string> args(atom_args.size());
   std::transform(atom_args.cbegin(), atom_args.cend(), args.begin(),
                  [](auto& a) { return base::WideToUTF8(a); });
 #else
-  auto args = AtomCommandLine::argv();
+  auto args = ElectronCommandLine::argv();
 #endif
 
   // Feed node the path to initialization script.
@@ -338,9 +342,8 @@ node::Environment* NodeBindings::CreateEnvironment(
   std::unique_ptr<const char*[]> c_argv = StringVectorToArgArray(args);
   isolate_data_ =
       node::CreateIsolateData(context->GetIsolate(), uv_loop_, platform);
-  node::Environment* env =
-      node::CreateEnvironment(isolate_data_, context, args.size(), c_argv.get(),
-                              0, nullptr, bootstrap_env);
+  node::Environment* env = node::CreateEnvironment(
+      isolate_data_, context, args.size(), c_argv.get(), 0, nullptr);
   DCHECK(env);
 
   // Clean up the global _noBrowserGlobals that we unironically injected into
@@ -348,7 +351,6 @@ node::Environment* NodeBindings::CreateEnvironment(
   if (browser_env_ != BrowserEnvironment::BROWSER) {
     // We need to bootstrap the env in non-browser processes so that
     // _noBrowserGlobals is read correctly before we remove it
-    DCHECK(bootstrap_env);
     global.Delete("_noBrowserGlobals");
   }
 
@@ -413,8 +415,7 @@ void NodeBindings::UvRunOnce() {
   v8::Context::Scope context_scope(env->context());
 
   // Perform microtask checkpoint after running JavaScript.
-  v8::MicrotasksScope script_scope(env->isolate(),
-                                   v8::MicrotasksScope::kRunMicrotasks);
+  gin_helper::MicrotasksScope microtasks_scope(env->isolate());
 
   if (browser_env_ != BrowserEnvironment::BROWSER)
     TRACE_EVENT_BEGIN0("devtools.timeline", "FunctionCall");
@@ -439,7 +440,8 @@ void NodeBindings::WakeupMainThread() {
 }
 
 void NodeBindings::WakeupEmbedThread() {
-  uv_async_send(&dummy_uv_handle_);
+  if (!in_worker_loop())
+    uv_async_send(&dummy_uv_handle_);
 }
 
 // static

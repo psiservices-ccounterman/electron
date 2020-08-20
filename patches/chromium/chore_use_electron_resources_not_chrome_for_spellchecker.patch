@@ -6,6 +6,18 @@ Subject: chore: use electron resources not chrome for spellchecker
 spellchecker uses a few IDS_ resources.  We need to load these from
 Electrons grit header instead of Chromes
 
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index b3f8ac152722daf79878d83f14d2ee0bf625004c..e70d15134e8ffe75311da48dfa222f4d3d85bf2d 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -5331,6 +5331,7 @@ jumbo_static_library("browser") {
+     deps += [
+       "//components/spellcheck/browser",
+       "//components/spellcheck/common",
++      "//electron:resources",
+     ]
+ 
+     if (!is_android) {
 diff --git a/chrome/browser/spellchecker/spellcheck_factory.cc b/chrome/browser/spellchecker/spellcheck_factory.cc
 index 48ac0a24efde0cb7d3ba71c8b8bdf5178f606e80..e2beefc276098fdc8f1cdab2e0edb8fae4ee67ca 100644
 --- a/chrome/browser/spellchecker/spellcheck_factory.cc
@@ -19,8 +31,20 @@ index 48ac0a24efde0cb7d3ba71c8b8bdf5178f606e80..e2beefc276098fdc8f1cdab2e0edb8fa
  #include "components/keyed_service/content/browser_context_dependency_manager.h"
  #include "components/pref_registry/pref_registry_syncable.h"
  #include "components/prefs/pref_service.h"
+diff --git a/components/language/core/browser/BUILD.gn b/components/language/core/browser/BUILD.gn
+index f28230ea94fece5ae8ca7ac27a14da48f40fadbb..c10eea103852b9411a644e1fe20a7e20a38bf187 100644
+--- a/components/language/core/browser/BUILD.gn
++++ b/components/language/core/browser/BUILD.gn
+@@ -31,6 +31,7 @@ static_library("browser") {
+     "//components/pref_registry",
+     "//components/prefs",
+     "//components/strings",
++    "//electron:resources",
+     "//ui/base",
+   ]
+ }
 diff --git a/components/language/core/browser/language_prefs.cc b/components/language/core/browser/language_prefs.cc
-index 4fd35c8d5bba01c25c906b19bb251222ba3d25b4..4770f0d6a8d145e5d16931d5caf4f1f85abead20 100644
+index 201dc7786e822d54b5d9ab8a9d02e7b4339a8d6d..a3232da24513b408403f9f7c033dcd2f3222da47 100644
 --- a/components/language/core/browser/language_prefs.cc
 +++ b/components/language/core/browser/language_prefs.cc
 @@ -21,7 +21,7 @@

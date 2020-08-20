@@ -44,7 +44,7 @@ class PersistentDictionary;
 
 namespace electron {
 
-class AtomMenuModel;
+class ElectronMenuModel;
 class NativeBrowserView;
 
 #if defined(OS_MACOSX)
@@ -149,6 +149,7 @@ class NativeWindow : public base::SupportsUserData,
   virtual void SetKiosk(bool kiosk) = 0;
   virtual bool IsKiosk() = 0;
   virtual void SetBackgroundColor(SkColor color) = 0;
+  virtual SkColor GetBackgroundColor() = 0;
   virtual void SetHasShadow(bool has_shadow) = 0;
   virtual bool HasShadow() = 0;
   virtual void SetOpacity(const double opacity) = 0;
@@ -160,7 +161,7 @@ class NativeWindow : public base::SupportsUserData,
   virtual void SetIgnoreMouseEvents(bool ignore, bool forward) = 0;
   virtual void SetContentProtection(bool enable) = 0;
   virtual void SetFocusable(bool focusable);
-  virtual void SetMenu(AtomMenuModel* menu);
+  virtual void SetMenu(ElectronMenuModel* menu);
   virtual void SetParentWindow(NativeWindow* parent);
   virtual void AddBrowserView(NativeBrowserView* browser_view) = 0;
   virtual void RemoveBrowserView(NativeBrowserView* browser_view) = 0;
@@ -184,8 +185,7 @@ class NativeWindow : public base::SupportsUserData,
                               const std::string& description) = 0;
 
   // Workspace APIs.
-  virtual void SetVisibleOnAllWorkspaces(bool visible,
-                                         bool visibleOnFullScreen = false) = 0;
+  virtual void SetVisibleOnAllWorkspaces(bool visible) = 0;
 
   virtual bool IsVisibleOnAllWorkspaces() = 0;
 
@@ -193,6 +193,13 @@ class NativeWindow : public base::SupportsUserData,
 
   // Vibrancy API
   virtual void SetVibrancy(const std::string& type);
+
+  // Traffic Light API
+#if defined(OS_MACOSX)
+  virtual void SetTrafficLightPosition(const gfx::Point& position) = 0;
+  virtual gfx::Point GetTrafficLightPosition() const = 0;
+  virtual void RedrawTrafficLights() = 0;
+#endif
 
   // Touchbar API
   virtual void SetTouchBar(std::vector<gin_helper::PersistentDictionary> items);
@@ -252,6 +259,7 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyWindowBlur();
   void NotifyWindowFocus();
   void NotifyWindowShow();
+  void NotifyWindowIsKeyChanged(bool is_key);
   void NotifyWindowHide();
   void NotifyWindowMaximize();
   void NotifyWindowUnmaximize();

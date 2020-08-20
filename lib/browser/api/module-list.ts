@@ -1,7 +1,5 @@
 // TODO: Updating this file also required updating the module-keys file
 
-const features = process.electronBinding('features')
-
 // Browser side modules, please sort alphabetically.
 export const browserModuleList: ElectronInternal.ModuleEntry[] = [
   { name: 'app', loader: () => require('./app') },
@@ -16,6 +14,7 @@ export const browserModuleList: ElectronInternal.ModuleEntry[] = [
   { name: 'inAppPurchase', loader: () => require('./in-app-purchase') },
   { name: 'Menu', loader: () => require('./menu') },
   { name: 'MenuItem', loader: () => require('./menu-item') },
+  { name: 'MessageChannelMain', loader: () => require('./message-channel') },
   { name: 'nativeTheme', loader: () => require('./native-theme') },
   { name: 'net', loader: () => require('./net') },
   { name: 'netLog', loader: () => require('./net-log') },
@@ -32,16 +31,16 @@ export const browserModuleList: ElectronInternal.ModuleEntry[] = [
   { name: 'View', loader: () => require('./view') },
   { name: 'webContents', loader: () => require('./web-contents') },
   { name: 'WebContentsView', loader: () => require('./web-contents-view') }
-]
+];
 
-if (features.isViewApiEnabled()) {
+if (BUILDFLAG(ENABLE_VIEW_API)) {
   browserModuleList.push(
-    { name: 'BoxLayout', loader: () => require('./views/box-layout') },
-    { name: 'Button', loader: () => require('./views/button') },
-    { name: 'LabelButton', loader: () => require('./views/label-button') },
-    { name: 'LayoutManager', loader: () => require('./views/layout-manager') },
-    { name: 'MdTextButton', loader: () => require('./views/md-text-button') },
-    { name: 'ResizeArea', loader: () => require('./views/resize-area') },
-    { name: 'TextField', loader: () => require('./views/text-field') }
-  )
+    { name: 'BoxLayout', loader: () => require('@electron/internal/browser/api/views/box-layout') },
+    { name: 'Button', loader: () => require('@electron/internal/browser/api/views/button') },
+    { name: 'LabelButton', loader: () => require('@electron/internal/browser/api/views/label-button') },
+    { name: 'LayoutManager', loader: () => require('@electron/internal/browser/api/views/layout-manager') },
+    { name: 'MdTextButton', loader: () => require('@electron/internal/browser/api/views/md-text-button') },
+    { name: 'ResizeArea', loader: () => require('@electron/internal/browser/api/views/resize-area') },
+    { name: 'TextField', loader: () => require('@electron/internal/browser/api/views/text-field') }
+  );
 }

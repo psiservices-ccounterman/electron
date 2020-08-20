@@ -7,10 +7,11 @@
 #include <string>
 #include <vector>
 
+#include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/native_web_keyboard_event.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/context_menu_params.h"
-#include "shell/browser/api/atom_api_web_contents.h"
+#include "content/public/common/untrustworthy_context_menu_params.h"
+#include "shell/browser/api/electron_api_web_contents.h"
 #include "shell/browser/web_contents_permission_helper.h"
 #include "shell/common/gin_converters/blink_converter.h"
 #include "shell/common/gin_converters/callback_converter.h"
@@ -301,6 +302,7 @@ v8::Local<v8::Value> Converter<content::NativeWebKeyboardEvent>::ToV8(
 
   using Modifiers = blink::WebInputEvent::Modifiers;
   dict.Set("isAutoRepeat", (in.GetModifiers() & Modifiers::kIsAutoRepeat) != 0);
+  dict.Set("isComposing", (in.GetModifiers() & Modifiers::kIsComposing) != 0);
   dict.Set("shift", (in.GetModifiers() & Modifiers::kShiftKey) != 0);
   dict.Set("control", (in.GetModifiers() & Modifiers::kControlKey) != 0);
   dict.Set("alt", (in.GetModifiers() & Modifiers::kAltKey) != 0);

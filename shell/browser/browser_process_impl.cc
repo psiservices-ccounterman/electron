@@ -17,11 +17,12 @@
 #include "components/proxy_config/pref_proxy_config_tracker_impl.h"
 #include "components/proxy_config/proxy_config_dictionary.h"
 #include "components/proxy_config/proxy_config_pref_names.h"
+#include "content/public/browser/child_process_security_policy.h"
 #include "content/public/common/content_switches.h"
+#include "extensions/common/constants.h"
 #include "net/proxy_resolution/proxy_config.h"
 #include "net/proxy_resolution/proxy_config_service.h"
 #include "net/proxy_resolution/proxy_config_with_annotation.h"
-#include "net/proxy_resolution/proxy_resolution_service.h"
 #include "services/network/public/cpp/network_switches.h"
 
 #if BUILDFLAG(ENABLE_PRINTING)
@@ -34,6 +35,11 @@ BrowserProcessImpl::BrowserProcessImpl() {
 
 BrowserProcessImpl::~BrowserProcessImpl() {
   g_browser_process = nullptr;
+}
+
+BuildState* BrowserProcessImpl::GetBuildState() {
+  NOTIMPLEMENTED();
+  return nullptr;
 }
 
 // static
@@ -89,6 +95,10 @@ void BrowserProcessImpl::PostEarlyInitialization() {
 }
 
 void BrowserProcessImpl::PreCreateThreads() {
+  // chrome-extension:// URLs are safe to request anywhere, but may only
+  // commit (including in iframes) in extension processes.
+  content::ChildProcessSecurityPolicy::GetInstance()
+      ->RegisterWebSafeIsolatedScheme(extensions::kExtensionScheme, true);
   // Must be created before the IOThread.
   // Once IOThread class is no longer needed,
   // this can be created on first use.

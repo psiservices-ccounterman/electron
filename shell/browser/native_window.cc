@@ -322,7 +322,7 @@ bool NativeWindow::IsDocumentEdited() {
 
 void NativeWindow::SetFocusable(bool focusable) {}
 
-void NativeWindow::SetMenu(AtomMenuModel* menu) {}
+void NativeWindow::SetMenu(ElectronMenuModel* menu) {}
 
 void NativeWindow::SetParentWindow(NativeWindow* parent) {
   parent_ = parent;
@@ -437,6 +437,11 @@ void NativeWindow::NotifyWindowBlur() {
 void NativeWindow::NotifyWindowFocus() {
   for (NativeWindowObserver& observer : observers_)
     observer.OnWindowFocus();
+}
+
+void NativeWindow::NotifyWindowIsKeyChanged(bool is_key) {
+  for (NativeWindowObserver& observer : observers_)
+    observer.OnWindowIsKeyChanged(is_key);
 }
 
 void NativeWindow::NotifyWindowShow() {

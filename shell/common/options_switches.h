@@ -54,6 +54,7 @@ extern const char kOpacity[];
 extern const char kFocusable[];
 extern const char kWebPreferences[];
 extern const char kVibrancyType[];
+extern const char kTrafficLightPosition[];
 
 // WebPreferences.
 extern const char kZoomFactor[];
@@ -61,6 +62,7 @@ extern const char kPreloadScript[];
 extern const char kPreloadURL[];
 extern const char kNodeIntegration[];
 extern const char kContextIsolation[];
+extern const char kWorldSafeExecuteJavaScript[];
 extern const char kGuestInstanceID[];
 extern const char kExperimentalFeatures[];
 extern const char kOpenerID[];
@@ -83,6 +85,7 @@ extern const char kImages[];
 extern const char kTextAreasAreResizable[];
 extern const char kWebGL[];
 extern const char kNavigateOnDragDrop[];
+extern const char kEnableWebSQL[];
 
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
 extern const char kSpellcheck[];
@@ -118,6 +121,7 @@ extern const char kPreloadScript[];
 extern const char kPreloadScripts[];
 extern const char kNodeIntegration[];
 extern const char kContextIsolation[];
+extern const char kWorldSafeExecuteJavaScript[];
 extern const char kGuestInstanceID[];
 extern const char kOpenerID[];
 extern const char kScrollBounce[];
@@ -128,6 +132,7 @@ extern const char kWebviewTag[];
 extern const char kNodeIntegrationInSubFrames[];
 extern const char kDisableElectronSiteInstanceOverrides[];
 extern const char kEnableNodeLeakageInRenderers[];
+extern const char kEnableWebSQL[];
 
 extern const char kWidevineCdmPath[];
 extern const char kWidevineCdmVersion[];
@@ -137,6 +142,7 @@ extern const char kIgnoreConnectionsLimit[];
 extern const char kAuthServerWhitelist[];
 extern const char kAuthNegotiateDelegateWhitelist[];
 extern const char kEnableAuthNegotiatePort[];
+extern const char kDisableNTLMv2[];
 
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
 extern const char kEnableSpellcheck[];
@@ -145,6 +151,8 @@ extern const char kEnableSpellcheck[];
 #if BUILDFLAG(ENABLE_REMOTE_MODULE)
 extern const char kEnableRemoteModule[];
 #endif
+
+extern const char kGlobalCrashKeys[];
 
 }  // namespace switches
 

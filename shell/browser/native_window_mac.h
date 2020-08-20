@@ -14,19 +14,20 @@
 
 #include "base/mac/scoped_nsobject.h"
 #include "shell/browser/native_window.h"
+#include "ui/native_theme/native_theme_observer.h"
 #include "ui/views/controls/native/native_view_host.h"
 
-@class AtomNSWindow;
-@class AtomNSWindowDelegate;
-@class AtomPreviewItem;
-@class AtomTouchBar;
+@class ElectronNSWindow;
+@class ElectronNSWindowDelegate;
+@class ElectronPreviewItem;
+@class ElectronTouchBar;
 @class CustomWindowButtonView;
 
 namespace electron {
 
 class RootViewMac;
 
-class NativeWindowMac : public NativeWindow {
+class NativeWindowMac : public NativeWindow, public ui::NativeThemeObserver {
  public:
   NativeWindowMac(const gin_helper::Dictionary& options, NativeWindow* parent);
   ~NativeWindowMac() override;
@@ -93,6 +94,7 @@ class NativeWindowMac : public NativeWindow {
   void SetKiosk(bool kiosk) override;
   bool IsKiosk() override;
   void SetBackgroundColor(SkColor color) override;
+  SkColor GetBackgroundColor() override;
   void SetHasShadow(bool has_shadow) override;
   bool HasShadow() override;
   void SetOpacity(const double opacity) override;
@@ -116,8 +118,7 @@ class NativeWindowMac : public NativeWindow {
   void SetOverlayIcon(const gfx::Image& overlay,
                       const std::string& description) override;
 
-  void SetVisibleOnAllWorkspaces(bool visible,
-                                 bool visibleOnFullScreen) override;
+  void SetVisibleOnAllWorkspaces(bool visible) override;
   bool IsVisibleOnAllWorkspaces() override;
 
   void SetAutoHideCursor(bool auto_hide) override;
@@ -149,6 +150,13 @@ class NativeWindowMac : public NativeWindow {
   void SetCollectionBehavior(bool on, NSUInteger flag);
   void SetWindowLevel(int level);
 
+  // Custom traffic light positioning
+  void RedrawTrafficLights() override;
+  void SetExitingFullScreen(bool flag);
+  void SetTrafficLightPosition(const gfx::Point& position) override;
+  gfx::Point GetTrafficLightPosition() const override;
+  void OnNativeThemeUpdated(ui::NativeTheme* observed_theme) override;
+
   enum class TitleBarStyle {
     NORMAL,
     HIDDEN,
@@ -157,11 +165,12 @@ class NativeWindowMac : public NativeWindow {
   };
   TitleBarStyle title_bar_style() const { return title_bar_style_; }
 
-  AtomPreviewItem* preview_item() const { return preview_item_.get(); }
-  AtomTouchBar* touch_bar() const { return touch_bar_.get(); }
+  ElectronPreviewItem* preview_item() const { return preview_item_.get(); }
+  ElectronTouchBar* touch_bar() const { return touch_bar_.get(); }
   bool zoom_to_page_width() const { return zoom_to_page_width_; }
   bool fullscreen_window_title() const { return fullscreen_window_title_; }
   bool always_simple_fullscreen() const { return always_simple_fullscreen_; }
+  bool exiting_fullscreen() const { return exiting_fullscreen_; }
 
  protected:
   // views::WidgetDelegate:
@@ -175,11 +184,11 @@ class NativeWindowMac : public NativeWindow {
   void InternalSetParentWindow(NativeWindow* parent, bool attach);
   void SetForwardMouseMessages(bool forward);
 
-  AtomNSWindow* window_;  // Weak ref, managed by widget_.
+  ElectronNSWindow* window_;  // Weak ref, managed by widget_.
 
-  base::scoped_nsobject<AtomNSWindowDelegate> window_delegate_;
-  base::scoped_nsobject<AtomPreviewItem> preview_item_;
-  base::scoped_nsobject<AtomTouchBar> touch_bar_;
+  base::scoped_nsobject<ElectronNSWindowDelegate> window_delegate_;
+  base::scoped_nsobject<ElectronPreviewItem> preview_item_;
+  base::scoped_nsobject<ElectronTouchBar> touch_bar_;
   base::scoped_nsobject<CustomWindowButtonView> buttons_view_;
 
   // Event monitor for scroll wheel event.
@@ -198,6 +207,8 @@ class NativeWindowMac : public NativeWindow {
   bool zoom_to_page_width_ = false;
   bool fullscreen_window_title_ = false;
   bool resizable_ = true;
+  bool exiting_fullscreen_ = false;
+  gfx::Point traffic_light_position_;
 
   NSInteger attention_request_id_ = 0;  // identifier from requestUserAttention
 
@@ -210,6 +221,9 @@ class NativeWindowMac : public NativeWindow {
   // The visibility mode of window button controls when explicitly set through
   // setWindowButtonVisibility().
   base::Optional<bool> window_button_visibility_;
+
+  // Maximizable window state; necessary for persistence through redraws.
+  bool maximizable_ = true;
 
   // Simple (pre-Lion) Fullscreen Settings
   bool always_simple_fullscreen_ = false;

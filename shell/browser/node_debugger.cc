@@ -13,7 +13,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "libplatform/libplatform.h"
-#include "native_mate/dictionary.h"
+#include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/node_includes.h"
 
 namespace electron {
@@ -55,7 +55,14 @@ void NodeDebugger::Start() {
   if (inspector->Start(path, options,
                        std::make_shared<node::HostPort>(options.host_port),
                        true /* is_main */))
-    DCHECK(env_->inspector_agent()->IsListening());
+    DCHECK(inspector->IsListening());
+
+  v8::HandleScope handle_scope(env_->isolate());
+  node::profiler::StartProfilers(env_);
+
+  if (inspector->options().break_node_first_line) {
+    inspector->PauseOnNextJavascriptStatement("Break at bootstrap");
+  }
 }
 
 void NodeDebugger::Stop() {

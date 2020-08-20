@@ -54,12 +54,10 @@ class OffScreenWebContentsView : public content::WebContentsView,
   gfx::Rect GetViewBounds() const override;
   void CreateView(gfx::NativeView context) override;
   content::RenderWidgetHostViewBase* CreateViewForWidget(
-      content::RenderWidgetHost* render_widget_host,
-      bool is_guest_view_hack) override;
+      content::RenderWidgetHost* render_widget_host) override;
   content::RenderWidgetHostViewBase* CreateViewForChildWidget(
       content::RenderWidgetHost* render_widget_host) override;
   void SetPageTitle(const base::string16& title) override;
-  void RenderViewCreated(content::RenderViewHost* host) override;
   void RenderViewReady() override;
   void RenderViewHostChanged(content::RenderViewHost* old_host,
                              content::RenderViewHost* new_host) override;
@@ -82,6 +80,7 @@ class OffScreenWebContentsView : public content::WebContentsView,
   bool IsPainting() const;
   void SetFrameRate(int frame_rate);
   int GetFrameRate() const;
+  void RenderViewCreated(content::RenderViewHost* host);
 
  private:
 #if defined(OS_MACOSX)

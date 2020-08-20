@@ -13,7 +13,7 @@
 #include "electron/buildflags/buildflags.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 // In SHARED_INTERMEDIATE_DIR.
-#include "widevine_cdm_version.h"  // NOLINT(build/include)
+#include "widevine_cdm_version.h"  // NOLINT(build/include_directory)
 
 #if defined(WIDEVINE_CDM_AVAILABLE)
 #include "chrome/renderer/media/chrome_key_systems_provider.h"  // nogncheck
@@ -26,10 +26,6 @@
 class SpellCheck;
 #endif
 
-namespace network_hints {
-class WebPrescientNetworkingImpl;
-}
-
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 namespace extensions {
 class ExtensionsClient;
@@ -39,7 +35,7 @@ class ExtensionsClient;
 namespace electron {
 
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
-class AtomExtensionsRendererClient;
+class ElectronExtensionsRendererClient;
 #endif
 
 class RendererClientBase : public content::ContentRendererClient
@@ -56,8 +52,6 @@ class RendererClientBase : public content::ContentRendererClient
   // service_manager::LocalInterfaceProvider implementation.
   void GetInterface(const std::string& name,
                     mojo::ScopedMessagePipeHandle request_handle) override;
-
-  void BindReceiverOnMainThread(mojo::GenericPendingReceiver receiver) override;
 #endif
 
   virtual void DidCreateScriptContext(v8::Handle<v8::Context> context,
@@ -71,7 +65,8 @@ class RendererClientBase : public content::ContentRendererClient
                                             content::RenderFrame* render_frame,
                                             int world_id) = 0;
 
-  blink::WebPrescientNetworking* GetPrescientNetworking() override;
+  std::unique_ptr<blink::WebPrescientNetworking> CreatePrescientNetworking(
+      content::RenderFrame* render_frame) override;
   bool isolated_world() const { return isolated_world_; }
 
   // Get the context that the Electron API is running in.
@@ -85,12 +80,17 @@ class RendererClientBase : public content::ContentRendererClient
   bool IsWebViewFrame(v8::Handle<v8::Context> context,
                       content::RenderFrame* render_frame) const;
 
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+  SpellCheck* GetSpellCheck() { return spellcheck_.get(); }
+#endif
+
  protected:
   void AddRenderBindings(v8::Isolate* isolate,
                          v8::Local<v8::Object> binding_object);
 
   // content::ContentRendererClient:
   void RenderThreadStarted() override;
+  void ExposeInterfacesToBrowser(mojo::BinderMap* binders) override;
   void RenderFrameCreated(content::RenderFrame*) override;
   bool OverrideCreatePlugin(content::RenderFrame* render_frame,
                             const blink::WebPluginParams& params,
@@ -100,6 +100,16 @@ class RendererClientBase : public content::ContentRendererClient
       override;
   bool IsKeySystemsUpdateNeeded() override;
   void DidSetUserAgent(const std::string& user_agent) override;
+  content::BrowserPluginDelegate* CreateBrowserPluginDelegate(
+      content::RenderFrame* render_frame,
+      const content::WebPluginInfo& info,
+      const std::string& mime_type,
+      const GURL& original_url) override;
+  bool IsPluginHandledExternally(content::RenderFrame* render_frame,
+                                 const blink::WebElement& plugin_element,
+                                 const GURL& original_url,
+                                 const std::string& mime_type) override;
+  bool IsOriginIsolatedPepperPlugin(const base::FilePath& plugin_path) override;
 
   void RunScriptsAtDocumentStart(content::RenderFrame* render_frame) override;
   void RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) override;
@@ -113,12 +123,9 @@ class RendererClientBase : public content::ContentRendererClient
 #endif
 
  private:
-  std::unique_ptr<network_hints::WebPrescientNetworkingImpl>
-      web_prescient_networking_impl_;
-
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
   std::unique_ptr<extensions::ExtensionsClient> extensions_client_;
-  std::unique_ptr<AtomExtensionsRendererClient> extensions_renderer_client_;
+  std::unique_ptr<ElectronExtensionsRendererClient> extensions_renderer_client_;
 #endif
 
 #if defined(WIDEVINE_CDM_AVAILABLE)
@@ -131,7 +138,6 @@ class RendererClientBase : public content::ContentRendererClient
 
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
   std::unique_ptr<SpellCheck> spellcheck_;
-  service_manager::BinderRegistry registry_;
 #endif
 };
 

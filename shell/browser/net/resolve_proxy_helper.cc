@@ -12,13 +12,13 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "net/proxy_resolution/proxy_info.h"
 #include "services/network/public/mojom/network_context.mojom.h"
-#include "shell/browser/atom_browser_context.h"
+#include "shell/browser/electron_browser_context.h"
 
 using content::BrowserThread;
 
 namespace electron {
 
-ResolveProxyHelper::ResolveProxyHelper(AtomBrowserContext* browser_context)
+ResolveProxyHelper::ResolveProxyHelper(ElectronBrowserContext* browser_context)
     : browser_context_(browser_context) {}
 
 ResolveProxyHelper::~ResolveProxyHelper() {
@@ -56,6 +56,7 @@ void ResolveProxyHelper::StartPendingRequest() {
   content::BrowserContext::GetDefaultStoragePartition(browser_context_)
       ->GetNetworkContext()
       ->LookUpProxyForURL(pending_requests_.front().url,
+                          net::NetworkIsolationKey::Todo(),
                           std::move(proxy_lookup_client));
 }
 
@@ -93,8 +94,8 @@ ResolveProxyHelper::PendingRequest::PendingRequest(
 
 ResolveProxyHelper::PendingRequest::~PendingRequest() noexcept = default;
 
-ResolveProxyHelper::PendingRequest& ResolveProxyHelper::PendingRequest::
-operator=(ResolveProxyHelper::PendingRequest&& pending_request) noexcept =
-    default;
+ResolveProxyHelper::PendingRequest&
+ResolveProxyHelper::PendingRequest::operator=(
+    ResolveProxyHelper::PendingRequest&& pending_request) noexcept = default;
 
 }  // namespace electron

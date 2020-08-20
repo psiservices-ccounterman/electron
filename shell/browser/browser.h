@@ -37,7 +37,7 @@ class Arguments;
 
 namespace electron {
 
-class AtomMenuModel;
+class ElectronMenuModel;
 
 // This class is used for control application-wide operations.
 class Browser : public WindowListObserver {
@@ -57,7 +57,7 @@ class Browser : public WindowListObserver {
   void Shutdown();
 
   // Focus the application.
-  void Focus();
+  void Focus(gin_helper::Arguments* args);
 
   // Returns the version of the executable (or bundle).
   std::string GetVersion() const;
@@ -184,7 +184,7 @@ class Browser : public WindowListObserver {
   bool DockIsVisible();
 
   // Set docks' menu.
-  void DockSetMenu(AtomMenuModel* model);
+  void DockSetMenu(ElectronMenuModel* model);
 
   // Set docks' icon.
   void DockSetIcon(const gfx::Image& image);
@@ -251,6 +251,7 @@ class Browser : public WindowListObserver {
   void OnAccessibilitySupportChanged();
 
   void PreMainMessageLoopRun();
+  void PreCreateThreads();
 
   // Stores the supplied |quit_closure|, to be run when the last Browser
   // instance is destroyed.

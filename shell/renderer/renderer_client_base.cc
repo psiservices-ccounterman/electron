@@ -24,10 +24,11 @@
 #include "shell/common/color_util.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/options_switches.h"
-#include "shell/renderer/atom_autofill_agent.h"
-#include "shell/renderer/atom_render_frame_observer.h"
+#include "shell/common/world_ids.h"
+#include "shell/renderer/browser_exposed_renderer_interfaces.h"
 #include "shell/renderer/content_settings_observer.h"
 #include "shell/renderer/electron_api_service_impl.h"
+#include "shell/renderer/electron_autofill_agent.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_custom_element.h"  // NOLINT(build/include_alpha)
@@ -52,7 +53,8 @@
 #endif
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
-#include "shell/common/atom_constants.h"
+#include "chrome/renderer/pepper/chrome_pdf_print_client.h"
+#include "shell/common/electron_constants.h"
 #endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
 
 #if BUILDFLAG(ENABLE_PLUGINS)
@@ -61,19 +63,23 @@
 
 #if BUILDFLAG(ENABLE_PRINTING)
 #include "components/printing/renderer/print_render_frame_helper.h"
-#include "printing/print_settings.h"
+#include "printing/print_settings.h"  // nogncheck
 #include "shell/renderer/printing/print_render_frame_helper_delegate.h"
 #endif  // BUILDFLAG(ENABLE_PRINTING)
 
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+#include "base/strings/utf_string_conversions.h"
+#include "content/public/common/webplugininfo.h"
+#include "extensions/common/constants.h"
 #include "extensions/common/extensions_client.h"
 #include "extensions/renderer/dispatcher.h"
 #include "extensions/renderer/extension_frame_helper.h"
 #include "extensions/renderer/guest_view/extensions_guest_view_container.h"
 #include "extensions/renderer/guest_view/extensions_guest_view_container_dispatcher.h"
 #include "extensions/renderer/guest_view/mime_handler_view/mime_handler_view_container.h"
-#include "shell/common/extensions/atom_extensions_client.h"
-#include "shell/renderer/extensions/atom_extensions_renderer_client.h"
+#include "extensions/renderer/guest_view/mime_handler_view/mime_handler_view_container_manager.h"
+#include "shell/common/extensions/electron_extensions_client.h"
+#include "shell/renderer/extensions/electron_extensions_renderer_client.h"
 #endif  // BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 
 namespace electron {
@@ -96,6 +102,11 @@ RendererClientBase::RendererClientBase() {
       ParseSchemesCLISwitch(command_line, switches::kStandardSchemes);
   for (const std::string& scheme : standard_schemes_list)
     url::AddStandardScheme(scheme.c_str(), url::SCHEME_WITH_HOST);
+  // Parse --cors-schemes=scheme1,scheme2
+  std::vector<std::string> cors_schemes_list =
+      ParseSchemesCLISwitch(command_line, switches::kCORSSchemes);
+  for (const std::string& scheme : cors_schemes_list)
+    url::AddCorsEnabledScheme(scheme.c_str());
   isolated_world_ = base::CommandLine::ForCurrentProcess()->HasSwitch(
       switches::kContextIsolation);
   // We rely on the unique process host id which is notified to the
@@ -148,15 +159,20 @@ void RendererClientBase::RenderThreadStarted() {
   extensions_client_.reset(CreateExtensionsClient());
   extensions::ExtensionsClient::Set(extensions_client_.get());
 
-  extensions_renderer_client_.reset(new AtomExtensionsRendererClient);
+  extensions_renderer_client_.reset(new ElectronExtensionsRendererClient);
   extensions::ExtensionsRendererClient::Set(extensions_renderer_client_.get());
 
   thread->AddObserver(extensions_renderer_client_->GetDispatcher());
 #endif
 
+#if BUILDFLAG(ENABLE_PDF_VIEWER)
+  // Enables printing from Chrome PDF viewer.
+  pdf::PepperPDFHost::SetPrintClient(new ChromePDFPrintClient());
+#endif
+
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
   if (command_line->HasSwitch(switches::kEnableSpellcheck))
-    spellcheck_ = std::make_unique<SpellCheck>(&registry_, this);
+    spellcheck_ = std::make_unique<SpellCheck>(this);
 #endif
 
   blink::WebCustomElement::AddEmbedderCustomElementName("webview");
@@ -218,6 +234,13 @@ void RendererClientBase::RenderThreadStarted() {
 #endif
 }
 
+void RendererClientBase::ExposeInterfacesToBrowser(mojo::BinderMap* binders) {
+  // NOTE: Do not add binders directly within this method. Instead, modify the
+  // definition of |ExposeElectronRendererInterfacesToBrowser()| to ensure
+  // security review coverage.
+  ExposeElectronRendererInterfacesToBrowser(this, binders);
+}
+
 void RendererClientBase::RenderFrameCreated(
     content::RenderFrame* render_frame) {
 #if defined(TOOLKIT_VIEWS)
@@ -263,6 +286,11 @@ void RendererClientBase::RenderFrameCreated(
   new extensions::ExtensionFrameHelper(render_frame, dispatcher);
 
   dispatcher->OnRenderFrameCreated(render_frame);
+
+  render_frame->GetAssociatedInterfaceRegistry()->AddInterface(
+      base::BindRepeating(
+          &extensions::MimeHandlerViewContainerManager::BindReceiver,
+          render_frame->GetRoutingID()));
 #endif
 
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
@@ -273,15 +301,6 @@ void RendererClientBase::RenderFrameCreated(
 }
 
 #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
-void RendererClientBase::BindReceiverOnMainThread(
-    mojo::GenericPendingReceiver receiver) {
-  // TODO(crbug.com/977637): Get rid of the use of BinderRegistry here. This is
-  // only used to bind a spellcheck interface.
-  std::string interface_name = *receiver.interface_name();
-  auto pipe = receiver.PassPipe();
-  registry_.TryBindInterface(interface_name, &pipe);
-}
-
 void RendererClientBase::GetInterface(
     const std::string& interface_name,
     mojo::ScopedMessagePipeHandle interface_pipe) {
@@ -338,12 +357,61 @@ void RendererClientBase::DidSetUserAgent(const std::string& user_agent) {
 #endif
 }
 
-blink::WebPrescientNetworking* RendererClientBase::GetPrescientNetworking() {
-  if (!web_prescient_networking_impl_) {
-    web_prescient_networking_impl_ =
-        std::make_unique<network_hints::WebPrescientNetworkingImpl>();
-  }
-  return web_prescient_networking_impl_.get();
+content::BrowserPluginDelegate* RendererClientBase::CreateBrowserPluginDelegate(
+    content::RenderFrame* render_frame,
+    const content::WebPluginInfo& info,
+    const std::string& mime_type,
+    const GURL& original_url) {
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  // TODO(nornagon): check the mime type isn't content::kBrowserPluginMimeType?
+  return new extensions::MimeHandlerViewContainer(render_frame, info, mime_type,
+                                                  original_url);
+#else
+  return nullptr;
+#endif
+}
+
+bool RendererClientBase::IsPluginHandledExternally(
+    content::RenderFrame* render_frame,
+    const blink::WebElement& plugin_element,
+    const GURL& original_url,
+    const std::string& mime_type) {
+#if BUILDFLAG(ENABLE_PDF_VIEWER)
+  DCHECK(plugin_element.HasHTMLTagName("object") ||
+         plugin_element.HasHTMLTagName("embed"));
+  // TODO(nornagon): this info should be shared with the data in
+  // electron_content_client.cc / ComputeBuiltInPlugins.
+  content::WebPluginInfo info;
+  info.type = content::WebPluginInfo::PLUGIN_TYPE_BROWSER_PLUGIN;
+  info.name = base::UTF8ToUTF16("Chromium PDF Viewer");
+  info.path = base::FilePath::FromUTF8Unsafe(extension_misc::kPdfExtensionId);
+  info.background_color = content::WebPluginInfo::kDefaultBackgroundColor;
+  info.mime_types.emplace_back("application/pdf", "pdf",
+                               "Portable Document Format");
+  return extensions::MimeHandlerViewContainerManager::Get(
+             content::RenderFrame::FromWebFrame(
+                 plugin_element.GetDocument().GetFrame()),
+             true /* create_if_does_not_exist */)
+      ->CreateFrameContainer(plugin_element, original_url, mime_type, info);
+#else
+  return false;
+#endif
+}
+
+bool RendererClientBase::IsOriginIsolatedPepperPlugin(
+    const base::FilePath& plugin_path) {
+#if BUILDFLAG(ENABLE_PDF_VIEWER)
+  return plugin_path.value() == kPdfPluginPath;
+#else
+  return false;
+#endif
+}
+
+std::unique_ptr<blink::WebPrescientNetworking>
+RendererClientBase::CreatePrescientNetworking(
+    content::RenderFrame* render_frame) {
+  return std::make_unique<network_hints::WebPrescientNetworkingImpl>(
+      render_frame);
 }
 
 void RendererClientBase::RunScriptsAtDocumentStart(
@@ -371,7 +439,7 @@ v8::Local<v8::Context> RendererClientBase::GetContext(
     blink::WebLocalFrame* frame,
     v8::Isolate* isolate) const {
   if (isolated_world())
-    return frame->WorldScriptContext(isolate, World::ISOLATED_WORLD);
+    return frame->WorldScriptContext(isolate, WorldIDs::ISOLATED_WORLD_ID);
   else
     return frame->MainWorldScriptContext();
 }
@@ -388,7 +456,7 @@ v8::Local<v8::Value> RendererClientBase::RunScript(
 
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 extensions::ExtensionsClient* RendererClientBase::CreateExtensionsClient() {
-  return new AtomExtensionsClient;
+  return new ElectronExtensionsClient;
 }
 #endif
 

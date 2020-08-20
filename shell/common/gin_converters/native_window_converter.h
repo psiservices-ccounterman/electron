@@ -6,7 +6,7 @@
 #define SHELL_COMMON_GIN_CONVERTERS_NATIVE_WINDOW_CONVERTER_H_
 
 #include "gin/converter.h"
-#include "shell/browser/api/atom_api_top_level_window.h"
+#include "shell/browser/api/electron_api_top_level_window.h"
 
 namespace gin {
 
@@ -22,9 +22,8 @@ struct Converter<electron::NativeWindow*> {
     }
 
     electron::api::TopLevelWindow* window;
-    // TODO(deermichel): remove mate:: after dropping mate
-    if (!mate::Converter<electron::api::TopLevelWindow*>::FromV8(isolate, val,
-                                                                 &window))
+    if (!gin::Converter<electron::api::TopLevelWindow*>::FromV8(isolate, val,
+                                                                &window))
       return false;
     *out = window->window();
     return true;

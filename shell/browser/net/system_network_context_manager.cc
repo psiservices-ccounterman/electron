@@ -11,6 +11,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/net/chrome_mojo_proxy_resolver_factory.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/cors_exempt_headers.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/service_names.mojom.h"
@@ -18,10 +19,10 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "net/net_buildflags.h"
 #include "services/network/network_service.h"
-#include "services/network/public/cpp/cross_thread_shared_url_loader_factory_info.h"
+#include "services/network/public/cpp/cross_thread_pending_shared_url_loader_factory.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
-#include "shell/browser/atom_browser_client.h"
+#include "shell/browser/electron_browser_client.h"
 #include "shell/common/application_info.h"
 #include "shell/common/options_switches.h"
 #include "url/gurl.h"
@@ -52,6 +53,8 @@ network::mojom::HttpAuthDynamicParamsPtr CreateHttpAuthDynamicParams() {
       electron::switches::kAuthNegotiateDelegateWhitelist);
   auth_dynamic_params->enable_negotiate_port =
       command_line->HasSwitch(electron::switches::kEnableAuthNegotiatePort);
+  auth_dynamic_params->ntlm_v2_enabled =
+      !command_line->HasSwitch(electron::switches::kDisableNTLMv2);
 
   return auth_dynamic_params;
 }
@@ -75,7 +78,7 @@ class SystemNetworkContextManager::URLLoaderFactoryForSystem
       int32_t request_id,
       uint32_t options,
       const network::ResourceRequest& url_request,
-      network::mojom::URLLoaderClientPtr client,
+      mojo::PendingRemote<network::mojom::URLLoaderClient> client,
       const net::MutableNetworkTrafficAnnotationTag& traffic_annotation)
       override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -94,10 +97,10 @@ class SystemNetworkContextManager::URLLoaderFactoryForSystem
   }
 
   // SharedURLLoaderFactory implementation:
-  std::unique_ptr<network::SharedURLLoaderFactoryInfo> Clone() override {
+  std::unique_ptr<network::PendingSharedURLLoaderFactory> Clone() override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-    return std::make_unique<network::CrossThreadSharedURLLoaderFactoryInfo>(
+    return std::make_unique<network::CrossThreadPendingSharedURLLoaderFactory>(
         this);
   }
 
@@ -153,6 +156,10 @@ network::mojom::NetworkContextParamsPtr
 SystemNetworkContextManager::CreateDefaultNetworkContextParams() {
   network::mojom::NetworkContextParamsPtr network_context_params =
       network::mojom::NetworkContextParams::New();
+
+  // This is required to avoid blocking X-Requested-With headers sent by PPAPI
+  // plugins, more info crbug.com/940331
+  content::UpdateCorsExemptHeader(network_context_params.get());
 
   network_context_params->enable_brotli = true;
 
@@ -220,7 +227,7 @@ SystemNetworkContextManager::CreateNetworkContextParams() {
   network_context_params->context_name = std::string("system");
 
   network_context_params->user_agent =
-      electron::AtomBrowserClient::Get()->GetUserAgent();
+      electron::ElectronBrowserClient::Get()->GetUserAgent();
 
   network_context_params->http_cache_enabled = false;
 

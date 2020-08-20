@@ -6,8 +6,36 @@ Subject: pepper plugin support
 This tweaks Chrome's pepper flash and PDF plugin support to make it
 usable from Electron.
 
+diff --git a/chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.cc b/chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.cc
+index 2e328c0fb5a6598c3ae911655b3e5016a02b7405..304364f7e02c19d2ad7d16433e92dcfecfc8eb41 100644
+--- a/chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.cc
++++ b/chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.cc
+@@ -11,6 +11,7 @@
+ #include "chrome/browser/renderer_host/pepper/pepper_flash_drm_host.h"
+ #include "chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.h"
+ #include "content/public/browser/browser_ppapi_host.h"
++#include "electron/buildflags/buildflags.h"
+ #include "ppapi/host/message_filter_host.h"
+ #include "ppapi/host/ppapi_host.h"
+ #include "ppapi/host/resource_host.h"
+@@ -52,6 +53,7 @@ ChromeBrowserPepperHostFactory::CreateResourceHost(
+     }
+   }
+ 
++#if BUILDFLAG(ENABLE_PEPPER_FLASH)
+   // Flash interfaces.
+   if (host_->GetPpapiHost()->permissions().HasPermission(
+           ppapi::PERMISSION_FLASH)) {
+@@ -70,6 +72,7 @@ ChromeBrowserPepperHostFactory::CreateResourceHost(
+             new PepperFlashDRMHost(host_, instance, resource));
+     }
+   }
++#endif
+ 
+   // Permissions for the following interfaces will be checked at the
+   // time of the corresponding instance's methods calls (because
 diff --git a/chrome/browser/renderer_host/pepper/pepper_broker_message_filter.cc b/chrome/browser/renderer_host/pepper/pepper_broker_message_filter.cc
-index 4bb88c55a82a83cef8330ec8157b49d5adb097ce..48f4e385a57eb0e00c90488fbf052900b6884775 100644
+index d72a867594acee97d50c5f905fc1a4df9aa9352e..8a4cc159cb490ebadbb1b54aa88223c0cbf8ffdb 100644
 --- a/chrome/browser/renderer_host/pepper/pepper_broker_message_filter.cc
 +++ b/chrome/browser/renderer_host/pepper/pepper_broker_message_filter.cc
 @@ -7,10 +7,12 @@
@@ -40,7 +68,7 @@ index 4bb88c55a82a83cef8330ec8157b49d5adb097ce..48f4e385a57eb0e00c90488fbf052900
 +  return PP_OK;
  }
 diff --git a/chrome/browser/renderer_host/pepper/pepper_flash_browser_host.cc b/chrome/browser/renderer_host/pepper/pepper_flash_browser_host.cc
-index d45f9a3b3b03498e96344ec741797cd649197a39..a282955a9007974905daa8611bd68fdccdfe34af 100644
+index c1fdd9dd86e4a205c6e2b51910f2bd2901501c75..77d65652808f2405881a8e1bb53d70d020866781 100644
 --- a/chrome/browser/renderer_host/pepper/pepper_flash_browser_host.cc
 +++ b/chrome/browser/renderer_host/pepper/pepper_flash_browser_host.cc
 @@ -8,9 +8,11 @@
@@ -55,7 +83,7 @@ index d45f9a3b3b03498e96344ec741797cd649197a39..a282955a9007974905daa8611bd68fdc
  #include "content/public/browser/browser_context.h"
  #include "content/public/browser/browser_ppapi_host.h"
  #include "content/public/browser/browser_task_traits.h"
-@@ -42,6 +44,7 @@ using content::RenderProcessHost;
+@@ -41,6 +43,7 @@ using content::RenderProcessHost;
  
  namespace {
  
@@ -63,15 +91,15 @@ index d45f9a3b3b03498e96344ec741797cd649197a39..a282955a9007974905daa8611bd68fdc
  // Get the CookieSettings on the UI thread for the given render process ID.
  scoped_refptr<content_settings::CookieSettings> GetCookieSettings(
      int render_process_id) {
-@@ -55,6 +58,7 @@ scoped_refptr<content_settings::CookieSettings> GetCookieSettings(
+@@ -54,6 +57,7 @@ scoped_refptr<content_settings::CookieSettings> GetCookieSettings(
    }
    return nullptr;
  }
 +#endif
  
- void PepperBindConnectorRequest(
-     service_manager::mojom::ConnectorRequest connector_request) {
-@@ -70,7 +74,9 @@ PepperFlashBrowserHost::PepperFlashBrowserHost(BrowserPpapiHost* host,
+ void BindWakeLockProviderOnUIThread(
+     mojo::PendingReceiver<device::mojom::WakeLockProvider> receiver) {
+@@ -67,7 +71,9 @@ PepperFlashBrowserHost::PepperFlashBrowserHost(BrowserPpapiHost* host,
                                                 PP_Instance instance,
                                                 PP_Resource resource)
      : ResourceHost(host->GetPpapiHost(), instance, resource),
@@ -81,7 +109,7 @@ index d45f9a3b3b03498e96344ec741797cd649197a39..a282955a9007974905daa8611bd68fdc
        delay_timer_(FROM_HERE,
                     base::TimeDelta::FromSeconds(45),
                     this,
-@@ -123,6 +129,7 @@ int32_t PepperFlashBrowserHost::OnGetLocalTimeZoneOffset(
+@@ -120,6 +126,7 @@ int32_t PepperFlashBrowserHost::OnGetLocalTimeZoneOffset(
  
  int32_t PepperFlashBrowserHost::OnGetLocalDataRestrictions(
      ppapi::host::HostMessageContext* context) {
@@ -89,9 +117,9 @@ index d45f9a3b3b03498e96344ec741797cd649197a39..a282955a9007974905daa8611bd68fdc
    // Getting the Flash LSO settings requires using the CookieSettings which
    // belong to the profile which lives on the UI thread. We lazily initialize
    // |cookie_settings_| by grabbing the reference from the UI thread and then
-@@ -143,9 +150,11 @@ int32_t PepperFlashBrowserHost::OnGetLocalDataRestrictions(
-                    context->MakeReplyMessageContext(), document_url,
-                    plugin_url));
+@@ -140,9 +147,11 @@ int32_t PepperFlashBrowserHost::OnGetLocalDataRestrictions(
+                        context->MakeReplyMessageContext(), document_url,
+                        plugin_url));
    }
 -  return PP_OK_COMPLETIONPENDING;
 +#endif
@@ -102,7 +130,7 @@ index d45f9a3b3b03498e96344ec741797cd649197a39..a282955a9007974905daa8611bd68fdc
  void PepperFlashBrowserHost::GetLocalDataRestrictions(
      ppapi::host::ReplyMessageContext reply_context,
      const GURL& document_url,
-@@ -174,6 +183,7 @@ void PepperFlashBrowserHost::GetLocalDataRestrictions(
+@@ -171,6 +180,7 @@ void PepperFlashBrowserHost::GetLocalDataRestrictions(
              PpapiPluginMsg_Flash_GetLocalDataRestrictionsReply(
                  static_cast<int32_t>(restrictions)));
  }
@@ -237,7 +265,7 @@ index b9d2ce7f7f6837ee7b304daac82d21a3147c6faf..4d4b023d62d12b4d119acbfdee64f415
  
    base::WeakPtrFactory<PepperFlashDRMHost> weak_factory_{this};
 diff --git a/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.cc b/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.cc
-index 0fa0fa341e93bd089ef2a22f74450af55db69f5b..9a6d8e5740d6ccede998efd3a96496acd9efabfb 100644
+index c94e1947dc1b1ea83b27107c36e87c3dad5a61b1..b38862b776713958c54c3523b61a36f99fd42e9e 100644
 --- a/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.cc
 +++ b/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.cc
 @@ -8,17 +8,21 @@
@@ -337,7 +365,7 @@ index 0fa0fa341e93bd089ef2a22f74450af55db69f5b..9a6d8e5740d6ccede998efd3a96496ac
  int32_t PepperIsolatedFileSystemMessageFilter::OpenPluginPrivateFileSystem(
      ppapi::host::HostMessageContext* context) {
 diff --git a/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.h b/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.h
-index b36248debee4f5e0503e7611f7d1c47d59650f5b..7af31ee0d2cbb4c8fc7cd41c356305d6476815c5 100644
+index 56a23e8f41bb418d414f11af5797b30571d4cc2b..6f9f577f16de80dd2ab194b557bbd9ec89599280 100644
 --- a/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.h
 +++ b/chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.h
 @@ -20,7 +20,9 @@
@@ -384,7 +412,7 @@ index b36248debee4f5e0503e7611f7d1c47d59650f5b..7af31ee0d2cbb4c8fc7cd41c356305d6
    DISALLOW_COPY_AND_ASSIGN(PepperIsolatedFileSystemMessageFilter);
  };
 diff --git a/chrome/renderer/pepper/chrome_renderer_pepper_host_factory.cc b/chrome/renderer/pepper/chrome_renderer_pepper_host_factory.cc
-index d63e90b6c5079ab3237c4bad3d5e63ce2f99c657..f1d4503d1f72df67ffcc73000a8a2ad3e2c93327 100644
+index d63e90b6c5079ab3237c4bad3d5e63ce2f99c657..ec8c1e7cfbaec3e0876325e6b9ebb01581988bee 100644
 --- a/chrome/renderer/pepper/chrome_renderer_pepper_host_factory.cc
 +++ b/chrome/renderer/pepper/chrome_renderer_pepper_host_factory.cc
 @@ -10,8 +10,13 @@
@@ -401,15 +429,45 @@ index d63e90b6c5079ab3237c4bad3d5e63ce2f99c657..f1d4503d1f72df67ffcc73000a8a2ad3
  #include "content/public/renderer/renderer_ppapi_host.h"
  #include "ppapi/host/ppapi_host.h"
  #include "ppapi/host/resource_host.h"
-@@ -86,6 +91,7 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
+@@ -39,6 +44,7 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
+   if (!host_->IsValidInstance(instance))
+     return nullptr;
+ 
++#if BUILDFLAG(ENABLE_PEPPER_FLASH)
+   if (host_->GetPpapiHost()->permissions().HasPermission(
+           ppapi::PERMISSION_FLASH)) {
+     switch (message.type()) {
+@@ -61,10 +67,12 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
+       }
      }
    }
++#endif
+ 
+   // TODO(raymes): PDF also needs access to the FlashFontFileHost currently.
+   // We should either rename PPB_FlashFont_File to PPB_FontFile_Private or get
+   // rid of its use in PDF if possible.
++#if BUILDFLAG(ENABLE_PEPPER_FLASH) || BUILDFLAG(ENABLE_PDF_VIEWER)
+   if (host_->GetPpapiHost()->permissions().HasPermission(
+           ppapi::PERMISSION_FLASH) ||
+       host_->GetPpapiHost()->permissions().HasPermission(
+@@ -80,12 +88,16 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
+         }
+         break;
+       }
++#if BUILDFLAG(ENABLE_PEPPER_FLASH)
+       case PpapiHostMsg_FlashDRM_Create::ID:
+         return std::make_unique<PepperFlashDRMRendererHost>(host_, instance,
+                                                             resource);
++#endif
+     }
+   }
++#endif
  
 +#if BUILDFLAG(ENABLE_PDF_VIEWER)
    if (host_->GetPpapiHost()->permissions().HasPermission(
            ppapi::PERMISSION_PDF)) {
      switch (message.type()) {
-@@ -94,7 +100,9 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
+@@ -94,7 +106,9 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
        }
      }
    }
@@ -419,7 +477,7 @@ index d63e90b6c5079ab3237c4bad3d5e63ce2f99c657..f1d4503d1f72df67ffcc73000a8a2ad3
    // Permissions for the following interfaces will be checked at the
    // time of the corresponding instance's method calls.  Currently these
    // interfaces are available only for whitelisted apps which may not have
-@@ -104,6 +112,7 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
+@@ -104,6 +118,7 @@ ChromeRendererPepperHostFactory::CreateResourceHost(
        return std::make_unique<PepperUMAHost>(host_, instance, resource);
      }
    }

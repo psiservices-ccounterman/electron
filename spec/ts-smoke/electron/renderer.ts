@@ -57,7 +57,6 @@ webFrame.setZoomLevel(200)
 console.log(webFrame.getZoomLevel())
 
 webFrame.setVisualZoomLevelLimits(50, 200)
-webFrame.setLayoutZoomLevelLimits(50, 200)
 
 webFrame.setSpellCheckProvider('en-US', {
   spellCheck (words, callback) {
@@ -192,12 +191,12 @@ const app = remote.app
 
 let mainWindow: Electron.BrowserWindow = null
 
-app.on('ready', () => {
+app.whenReady().then(() => {
   const size = screen.getPrimaryDisplay().workAreaSize
   mainWindow = new BrowserWindow({ width: size.width, height: size.height })
 })
 
-app.on('ready', () => {
+app.whenReady().then(() => {
   const displays = screen.getAllDisplays()
   let externalDisplay: any = null
   for (const i in displays) {

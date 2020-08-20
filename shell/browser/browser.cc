@@ -15,16 +15,31 @@
 #include "base/run_loop.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "shell/browser/atom_browser_main_parts.h"
-#include "shell/browser/atom_paths.h"
 #include "shell/browser/browser_observer.h"
+#include "shell/browser/electron_browser_main_parts.h"
 #include "shell/browser/login_handler.h"
 #include "shell/browser/native_window.h"
 #include "shell/browser/window_list.h"
 #include "shell/common/application_info.h"
+#include "shell/common/electron_paths.h"
 #include "shell/common/gin_helper/arguments.h"
 
 namespace electron {
+
+namespace {
+
+// Call |quit| after Chromium is fully started.
+//
+// This is important for quitting immediately in the "ready" event, when
+// certain initialization task may still be pending, and quitting at that time
+// could end up with crash on exit.
+void RunQuitClosure(base::OnceClosure quit) {
+  // On Linux/Windows the "ready" event is emitted in "PreMainMessageLoopRun",
+  // make sure we quit after message loop has run for once.
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(quit));
+}
+
+}  // namespace
 
 Browser::LoginItemSettings::LoginItemSettings() = default;
 Browser::LoginItemSettings::~LoginItemSettings() = default;
@@ -41,7 +56,7 @@ Browser::~Browser() {
 
 // static
 Browser* Browser::Get() {
-  return AtomBrowserMainParts::Get()->browser();
+  return ElectronBrowserMainParts::Get()->browser();
 }
 
 void Browser::Quit() {
@@ -62,7 +77,7 @@ void Browser::Exit(gin_helper::Arguments* args) {
   int code = 0;
   args->GetNext(&code);
 
-  if (!AtomBrowserMainParts::Get()->SetExitCode(code)) {
+  if (!ElectronBrowserMainParts::Get()->SetExitCode(code)) {
     // Message loop is not ready, quit directly.
     exit(code);
   } else {
@@ -94,7 +109,7 @@ void Browser::Shutdown() {
     observer.OnQuit();
 
   if (quit_main_message_loop_) {
-    std::move(quit_main_message_loop_).Run();
+    RunQuitClosure(std::move(quit_main_message_loop_));
   } else {
     // There is no message loop available so we are in early stage, wait until
     // the quit_main_message_loop_ is available.
@@ -187,9 +202,15 @@ void Browser::PreMainMessageLoopRun() {
   }
 }
 
+void Browser::PreCreateThreads() {
+  for (BrowserObserver& observer : observers_) {
+    observer.OnPreCreateThreads();
+  }
+}
+
 void Browser::SetMainMessageLoopQuitClosure(base::OnceClosure quit_closure) {
   if (is_shutdown_)
-    std::move(quit_closure).Run();
+    RunQuitClosure(std::move(quit_closure));
   else
     quit_main_message_loop_ = std::move(quit_closure);
 }

@@ -3,11 +3,15 @@
 // found in the LICENSE file.
 
 #include "electron/buildflags/buildflags.h"
-#include "native_mate/dictionary.h"
 #include "printing/buildflags/buildflags.h"
+#include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/node_includes.h"
 
 namespace {
+
+bool IsBuiltinSpellCheckerEnabled() {
+  return BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER);
+}
 
 bool IsDesktopCapturerEnabled() {
   return BUILDFLAG(ENABLE_DESKTOP_CAPTURER);
@@ -65,7 +69,8 @@ void Initialize(v8::Local<v8::Object> exports,
                 v8::Local<v8::Value> unused,
                 v8::Local<v8::Context> context,
                 void* priv) {
-  mate::Dictionary dict(context->GetIsolate(), exports);
+  gin_helper::Dictionary dict(context->GetIsolate(), exports);
+  dict.SetMethod("isBuiltinSpellCheckerEnabled", &IsBuiltinSpellCheckerEnabled);
   dict.SetMethod("isDesktopCapturerEnabled", &IsDesktopCapturerEnabled);
   dict.SetMethod("isOffscreenRenderingEnabled", &IsOffscreenRenderingEnabled);
   dict.SetMethod("isRemoteModuleEnabled", &IsRemoteModuleEnabled);
