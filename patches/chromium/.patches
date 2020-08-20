@@ -6,6 +6,7 @@ blink_file_path.patch
 blink_local_frame.patch
 blink_world_context.patch
 can_create_window.patch
+window-ccount.patch
 disable_hidden.patch
 dom_storage_limits.patch
 render_widget_host_view_base.patch

@@ -1,0 +1,110 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Craig A Counterman <ccounterman@psionline.com>
+Date: Mon, 10 Feb 2020 18:13:08 -0500
+Subject: window-ccount
+
+
+diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
+index d4ade703052e0bb26d21d901c91a12201a5c5403..3694a1cf9902bab8163bd5a9ed5385babe7dced1 100644
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -2922,9 +2922,9 @@ RenderFrameHostDelegate* WebContentsImpl::CreateNewWindow(
+   }
+ 
+   if (delegate_) {
+-    delegate_->WebContentsCreated(this, render_process_id,
+-                                  opener->GetRoutingID(), params.frame_name,
+-                                  params.target_url, new_contents_impl);
++    delegate_->WebContentsCreatedWithFullParams(this, render_process_id,
++                                                opener->GetRoutingID(),
++                                                params, new_contents_impl);
+   }
+ 
+   for (auto& observer : observers_) {
+diff --git a/content/common/frame.mojom b/content/common/frame.mojom
+index 4de3b9200c59dc54aabbd13a69470d57c0cf2c89..16139dd43119eb2239c29ca9cfac9f94150b4d5a 100644
+--- a/content/common/frame.mojom
++++ b/content/common/frame.mojom
+@@ -303,7 +303,7 @@ struct CreateNewWindowParams {
+   blink.mojom.WindowFeatures features;
+ 
+   // Extra fields added by Electron.
+-  array<string> additional_features;
++  string raw_features;
+   network.mojom.URLRequestBody? body;
+ };
+ 
+diff --git a/content/public/browser/content_browser_client.cc b/content/public/browser/content_browser_client.cc
+index a4b15ed39cca38fe7b0c187c2e1139d5966438c1..0dde2fc08c3ff2b45c961d732ebaa034da570a21 100644
+--- a/content/public/browser/content_browser_client.cc
++++ b/content/public/browser/content_browser_client.cc
+@@ -529,7 +529,7 @@ bool ContentBrowserClient::CanCreateWindow(
+     const std::string& frame_name,
+     WindowOpenDisposition disposition,
+     const blink::mojom::WindowFeatures& features,
+-    const std::vector<std::string>& additional_features,
++    const std::string& raw_features,
+     const scoped_refptr<network::ResourceRequestBody>& body,
+     bool user_gesture,
+     bool opener_suppressed,
+diff --git a/content/public/browser/content_browser_client.h b/content/public/browser/content_browser_client.h
+index a4e37996522743471e819c5349c77da201dc283d..737a6dd895b73291da338fc8f3d57d5ce9931ee6 100644
+--- a/content/public/browser/content_browser_client.h
++++ b/content/public/browser/content_browser_client.h
+@@ -871,7 +871,7 @@ class CONTENT_EXPORT ContentBrowserClient {
+       const std::string& frame_name,
+       WindowOpenDisposition disposition,
+       const blink::mojom::WindowFeatures& features,
+-      const std::vector<std::string>& additional_features,
++      const std::string& raw_features,
+       const scoped_refptr<network::ResourceRequestBody>& body,
+       bool user_gesture,
+       bool opener_suppressed,
+diff --git a/content/public/browser/web_contents_delegate.cc b/content/public/browser/web_contents_delegate.cc
+index 1b25677970a850f2732b7f034f143fd686268f2a..05c26da27d23f005449695ba9256070d4e350d5d 100644
+--- a/content/public/browser/web_contents_delegate.cc
++++ b/content/public/browser/web_contents_delegate.cc
+@@ -24,6 +24,17 @@
+ 
+ namespace content {
+ 
++void WebContentsDelegate::WebContentsCreatedWithFullParams(
++    WebContents* source_contents,
++    int opener_render_process_id,
++    int opener_render_frame_id,
++    const mojom::CreateNewWindowParams& params,
++    WebContents* new_contents) {
++  WebContentsCreated(source_contents, opener_render_process_id,
++                     opener_render_frame_id, params.frame_name,
++                     params.target_url, new_contents);
++}
++
+ WebContentsDelegate::WebContentsDelegate() = default;
+ 
+ WebContents* WebContentsDelegate::OpenURLFromTab(WebContents* source,
+diff --git a/content/public/browser/web_contents_delegate.h b/content/public/browser/web_contents_delegate.h
+index 2a073551cd8abb0177a97b6e4fa7b9ff732eb12b..db8d9a985e7f0bb14ef167dc2713ee7cb5e1f8d7 100644
+--- a/content/public/browser/web_contents_delegate.h
++++ b/content/public/browser/web_contents_delegate.h
+@@ -16,6 +16,7 @@
+ #include "base/strings/string16.h"
+ #include "build/build_config.h"
+ #include "content/common/content_export.h"
++#include "content/common/frame.mojom.h"
+ #include "content/public/browser/bluetooth_chooser.h"
+ #include "content/public/browser/bluetooth_scanning_prompt.h"
+ #include "content/public/browser/invalidate_type.h"
+@@ -321,6 +322,13 @@ class CONTENT_EXPORT WebContentsDelegate {
+       const std::string& partition_id,
+       SessionStorageNamespace* session_storage_namespace);
+ 
++  virtual void WebContentsCreatedWithFullParams(
++      WebContents* source_contents,
++      int opener_render_process_id,
++      int opener_render_frame_id,
++      const mojom::CreateNewWindowParams& params,
++      WebContents* new_contents);
++
+   // Notifies the delegate about the creation of a new WebContents. This
+   // typically happens when popups are created.
+   virtual void WebContentsCreated(WebContents* source_contents,
